@@ -1,5 +1,5 @@
-config.yaml
 venv
 *.idea
 *.iml
 dist
+.DS_Store

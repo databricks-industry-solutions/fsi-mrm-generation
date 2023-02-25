@@ -8,7 +8,7 @@ from databricks.mrm_utils import *
 logger = logging.getLogger('databricks')
 
 
-class DatabricksApi:
+class ModelRiskApi:
 
     def __init__(self, base_url, api_token):
 

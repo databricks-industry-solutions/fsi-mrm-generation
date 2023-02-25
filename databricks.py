@@ -2,7 +2,7 @@ import argparse
 import logging
 import sys
 
-from databricks.mrm import DatabricksApi
+from databricks.mrm import ModelRiskApi
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -26,8 +26,6 @@ args = parser.parse_args()
 #######################
 # READING CONFIGURATION
 #######################
-
-print(args)
 
 if not args.db_workspace:
     logger.error("please provide databricks workspace url")
@@ -54,5 +52,5 @@ else:
 # GENERATING MRM FILE
 #####################
 
-api = DatabricksApi(args.db_workspace, args.db_token)
+api = ModelRiskApi(args.db_workspace, args.db_token)
 api.generate_mrm(args.model_name, args.output, model_version=model_version)

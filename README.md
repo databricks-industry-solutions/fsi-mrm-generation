@@ -23,9 +23,9 @@ ___
 ## Usage
 
 ```python
-from databricks.mrm import DatabricksApi
+from databricks.mrm import ModelRiskApi
 
-api = DatabricksApi(
+api = ModelRiskApi(
     databricks_workspace_url, 
     databricks_token
 )
