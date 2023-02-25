@@ -25,14 +25,14 @@ ___
 ```python
 from databricks.mrm import ModelRiskApi
 
-api = ModelRiskApi(
-    databricks_workspace_url, 
+mrm = ModelRiskApi(
+    databricks_workspace_url,
     databricks_token
 )
 
-api.generate_mrm(
-    model_name, 
-    pdf_output_file, 
+mrm.generate_doc(
+    model_name,
+    pdf_output_file,
     model_version=model_version
 )
 ```

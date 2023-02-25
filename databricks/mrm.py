@@ -424,7 +424,7 @@ class ModelRiskApi:
         # Get all upstream sources recursively
         return self.__process_lineage(response)
 
-    def generate_mrm(self, model_name, output_file, model_version=None):
+    def generate_doc(self, model_name, output_file, model_version=None):
 
         verbatim = load_verbatim()
 

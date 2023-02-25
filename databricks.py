@@ -53,4 +53,4 @@ else:
 #####################
 
 api = ModelRiskApi(args.db_workspace, args.db_token)
-api.generate_mrm(args.model_name, args.output, model_version=model_version)
+api.generate_doc(args.model_name, args.output, model_version=model_version)
