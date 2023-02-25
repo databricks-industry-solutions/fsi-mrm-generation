@@ -48,6 +48,7 @@ set forth below.
 | PyYAML                           | Yaml parser         | MIT     | https://pypi.org/project/PyYAML/           |
 | markdown                         | Markdown parser     | MIT     | https://pypi.org/project/markdown2/        |
 | graphviz                         | Graph visualization | MIT     | https://pypi.org/project/graphviz/         |
+| pdfkit                           | html to pdf         | MIT     | https://pypi.org/project/pdfkit/           |
 
 *Please note that this utility library was built as a framework rather than as an end product. As generic as possible,
 this framework may not accommodate every specific requirements across different model strategies, different model

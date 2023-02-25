@@ -11,6 +11,7 @@ jobs:
     env:
       PYTHON: '3.9'
     runs-on: ubuntu-latest
+    environment: unittest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
