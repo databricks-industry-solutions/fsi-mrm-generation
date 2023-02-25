@@ -1,0 +1,37 @@
+name: build
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  push:
+    branches: [master]
+
+jobs:
+  tests:
+    env:
+      PYTHON: '3.9'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Unshallow
+        run: git fetch --prune --unshallow
+      
+      - name: Setup Python
+        uses: actions/setup-python@master
+        with:
+          python-version: 3.9
+
+      - name: Generate coverage report
+        working-directory: ./
+        run: |
+          pip install -r requirements.txt
+          python databricks.py \
+            --db-workspace ${{ secrets.DB_WORKSPACE }} \
+            --db-token ${{ secrets.DB_TOKEN }} \
+            --model-name ${{ secrets.MODEL_NAME }} \
+            --output mrm.pdf
+          
+      - name: Publish test coverage
+        uses: codecov/codecov-action@v1
