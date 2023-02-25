@@ -37,6 +37,9 @@ api.generate_mrm(
 )
 ```
 
+See example [output](mrm_output.pdf) for a given test model done using an existing solution 
+[accelerator](https://github.com/databricks-industry-solutions/value-at-risk). 
+
 Make sure to have both wkhtmltopdf and graphviz binary installed
 
 ```bash
