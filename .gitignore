@@ -1,0 +1,5 @@
+config.yaml
+venv
+*.idea
+*.iml
+dist

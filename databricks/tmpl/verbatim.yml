@@ -1,0 +1,118 @@
+title: "Model Risk Management"
+
+mlflow_model:
+  header: "Executive summary"
+  error: "Could not find any description attached to that model. 
+      Should you need to update this executive summary, please refer to mlflow 
+      <a href='https://mlflow.org/docs/latest/model-registry.html#adding-or-updating-an-mlflow-model-descriptions'>documentation</a>"
+  info: "This section reports the description of the model as specified by the model owner and reported on mlflow 
+        registry. The narrative should clearly articulate the business motivations behind this initiative, the desired 
+        business outcomes as well as its associated risk for the bank and / or its customers. This section will be used 
+        to assess the materiality of this model and may trigger different review processes and compliance requirements 
+        accordingly."
+
+mlflow_model_version:
+  header: "Model submission request"
+  error: "Could not find any description attached to the model version. 
+    Should you need to update this executive summary for that particular version, please refer to mlflow 
+    <a href='https://mlflow.org/docs/latest/model-registry.html#adding-or-updating-an-mlflow-model-descriptions'>documentation</a>"
+  info: "This section reports the description of the model version submitted by the model owner and reported on mlflow 
+    registry. The narrative should clearly articulate the business motivations behind this new submission, and the 
+    desired benefits relative to previous model versions. Please ensure markdown is attached to your model submission 
+    on mlflow registry."
+
+mlflow_model_version_run:
+  header: "Developmental history and conceptual soundness"
+  error: "Could not find any description attached to the model experiment.
+    Should you need to update technical summary programmatically, please refer to mlflow
+    <a href='https://mlflow.org/docs/latest/python_api/mlflow.html#mlflow.start_run'>documentation</a>."
+  info: "This section reports the technical approach taken during the implementation of this particular model version. 
+    The narrative should clearly articulate the consideration behind the use of specific libraries and frameworks, 
+    the relevance of the data used throughout this exercise as well as the assumptions, constraints, dependencies, 
+    limitations and risks (ACDLR) as identified at the start of this project. Using empirical evidence, this section 
+    should clearly indicate why this particular experiment was proved to be the best model candidate and why other 
+    experiments or approaches were discarded. Finally, when applicable, the practitioner should be able to explain 
+    their strategies to ensure an explainable, fair and ethical use of data / AI.
+    Please ensure markdown is attached to your model experiment on mlflow."
+
+implementation:
+  header: "Model development, implementation and testing"
+  info: "This section dynamically pulls all the technical context around the implementation of the model itself. A given
+    model registered on mlflow should have an associated experiment that can be linked to actual code at a given 
+    version. The goal is to document the approach taken by the model developer in the implementation of the model. 
+    We report all the technical metadata and specification of the artifact(s) logged on mlflow, the parameters 
+    used and output metrics."
+
+implementation_approach:
+  header: "Developmental overview"
+  info: "This section will automatically retrieve the code associated with the model experiment. We report a databricks
+    JOB output or a databricks NOTEBOOK markdown and their respective output cells. This becomes the responsibility of 
+    the model developer to document their approach with distinct sections and headers, from data sourcing and 
+    transformation, exploratory data analysis, feature selection, model selection and validation as well as model 
+    explainability when applicable. We recommend organizations to create template notebooks covering internal policies 
+    and external compliance requirements to ensure consistency and relevance of this documentation. 
+    Such policies will be seamlessly reported here."
+  error: "Could not find any code associated with model experiment."
+
+implementation_artifacts:
+  header: "Submitted artefacts"
+  info: "In this section, we report all binary artefacts that were stored alongside this model. Since a model may have 
+    multiple 'flavors' (or interpreter), we report each binary and their respective version."
+  error: "Could not find any artifact for the registered experiment."
+
+model_parameters:
+  header: "Model parameters"
+  info: "In this section, we report all the parameters used in the creation of this model. We highly recommend the 
+    use of mlflow auto-logging capability to ensure consistency of information reported from different teams and 
+    across different frameworks."
+  error: "Could not find any parameter logged for the registered experiment."
+
+model_metrics:
+  header: "Model calibration"
+  info: "In this section, we report all the metrics logged in the creation of this model. We highly recommend the 
+    use of mlflow auto-logging capability to ensure consistency of information reported from different teams and 
+    across different frameworks."
+  error: "Could not find any metrics logged for the registered experiment. "
+
+model_dependencies:
+  header: "Model dependencies"
+  info: "This section will retrieve all technical context surrounding the development of the model, the data set used,
+    the input and output features, as well as infrastructure requirements and external libraries. This section will
+    ensure model output can be reproduced under same conditions."
+
+model_dependencies_infra:
+  header: "Infrastructure dependency"
+  info: "This section will programmatically retrieve the specification of the infrastructure used for the creation of 
+    the model. What environment was created, how many nodes were leveraged for distributed computing, what databricks 
+    runtime was used. We highly encourage users to leverage LTS versions of our runtimes."
+  error: "Could not find any associated cluster."
+
+model_dependencies_libraries:
+  header: "Libraries dependencies"
+  info: "Beside the cluster and infrastructure used for the creation of the model, specific libraries (open source or 
+    proprietary) may have been leveraged. This section will report all external dependencies (maven, pypi, custom 
+    packages) and their respective versions. We highly encourage users to install libraries at an infrastructure level
+    rather than at a notebook level to ensure each library is properly tracked and reported here."
+  error: "Could not find any associated libraries. Make sure dependencies are captured and installed as a cluster 
+    level (linked to an infrastructure rather than a notebook)."
+
+model_signature:
+  header: "Input and output signatures"
+  info: "This section will programmatically represent the input features of the model and expected output signature. 
+    The transformations applied upfront should be documented as part of the developmental overview reported earlier."
+  error: "No signature registered for model."
+
+model_dependencies_data:
+  header: "Data dependencies"
+  info: "This section will report the different data sources used throughout this exercise. Using mlflow coupled with
+    databricks notebooks, we should be able to track all data sources loaded through spark alongside their versions 
+    whenever possible. We highly encourage users to leverage delta format whenever possible to lock an experiment on a 
+    given data version we can easily time travel to."
+  error: "Could not find any associated data sources. Make sure dependencies are captured and unity catalog is enabled."
+
+model_dependencies_lineage:
+  header: "Model lineage"
+  info: "Whenever applicable, we will track the associated data lineage for every data dependency tracked in this 
+    experiments. Please refer to unity catalog to ensure lineage is captured end to end and reported here as a graphical 
+    representation."
+  error: "Could not find associated lineage. Make sure dependencies are captured and unity catalog is enabled."

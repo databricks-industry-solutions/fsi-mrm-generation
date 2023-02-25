@@ -1,0 +1,26 @@
+.section-break {
+  page-break-before:always
+}
+
+.section-content {
+    margin-bottom: 50px;
+}
+
+h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+  margin-bottom: 0.5rem;
+  font-family: 'DM Sans';
+  color: inherit;
+}
+
+body {
+  font-family: 'DM Sans';
+}
+
+.jumbotron {
+  background-color: #f8fafc;
+}
+
+div.divFooter {
+  position: fixed;
+  bottom: 0;
+}
