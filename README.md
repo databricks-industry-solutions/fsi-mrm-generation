@@ -37,6 +37,12 @@ api.generate_mrm(
 )
 ```
 
+Make sure to have both wkhtmltopdf and graphviz binary installed
+
+```bash
+sudo apt-get install -y graphviz wkhtmltopdf
+```
+
 ## License
 
 © 2023 Databricks, Inc. All rights reserved. The source is provided subject to the Databricks License
@@ -49,6 +55,7 @@ set forth below.
 | markdown                         | Markdown parser     | MIT     | https://pypi.org/project/markdown2/        |
 | graphviz                         | Graph visualization | MIT     | https://pypi.org/project/graphviz/         |
 | pdfkit                           | html to pdf         | MIT     | https://pypi.org/project/pdfkit/           |
+
 
 *Please note that this utility library was built as a framework rather than as an end product. As generic as possible,
 this framework may not accommodate every specific requirements across different model strategies, different model
