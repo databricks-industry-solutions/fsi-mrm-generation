@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: 3.9
 
-      - name: Generate coverage report
+      - name: Generate model risk file
         working-directory: ./
         run: |
           pip install -r requirements.txt
@@ -33,5 +33,3 @@ jobs:
             --model-name ${{ secrets.MODEL_NAME }} \
             --output mrm.pdf
           
-      - name: Publish test coverage
-        uses: codecov/codecov-action@v1
