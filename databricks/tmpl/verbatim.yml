@@ -16,10 +16,10 @@ mlflow_model_version:
   error: "Could not find any description attached to the model version. 
     Should you need to update this executive summary for that particular version, please refer to mlflow 
     <a href='https://mlflow.org/docs/latest/model-registry.html#adding-or-updating-an-mlflow-model-descriptions'>documentation</a>"
-  info: "This section reports the description of the model version submitted by the model owner and reported on mlflow 
-    registry. The narrative should clearly articulate the business motivations behind this new submission, and the 
-    desired benefits relative to previous model versions. Please ensure markdown is attached to your model submission 
-    on mlflow registry."
+  info: "This section reports the description of the version of model submitted by the model owner and reported on 
+    mlflow registry. The narrative should clearly articulate the business motivations behind this new submission, and 
+    the desired benefits relative to previous model versions. Please ensure markdown is attached to your model 
+    submission on mlflow registry."
 
 mlflow_model_version_run:
   header: "Developmental history and conceptual soundness"

@@ -14,6 +14,22 @@ class MRMInterface:
         pass
 
 
+class Stage(MRMInterface):
+    def __init__(self, stage):
+        self.stage = stage.upper()
+
+    def to_html(self, h_level=1):
+        if self.stage == 'STAGING':
+            badge = 'badge-warning'
+        elif self.stage == 'ARCHIVED':
+            badge = 'badge-secondary'
+        elif self.stage == 'PRODUCTION':
+            badge = 'badge-danger'
+        else:
+            badge = 'badge-secondary'
+        return f'<span class="badge {badge}">{self.stage}</span>'
+
+
 class Experiment(MRMInterface):
     def __init__(
             self,
@@ -30,6 +46,7 @@ class Experiment(MRMInterface):
             source_type,
             source_name,
             source_url,
+            source_commit,
             source_code,
             run_cluster,
             run_artifacts,
@@ -51,6 +68,7 @@ class Experiment(MRMInterface):
         self.run_cluster = run_cluster
         self.run_artifacts = run_artifacts
         self.source_code = source_code
+        self.source_commit = source_commit
         self.run_libraries = run_libraries
 
     def to_html(self, h_level=1):
@@ -80,6 +98,10 @@ class Experiment(MRMInterface):
             '<tr>',
             '<th>Execution code url</th>',
             f'<td>{self.source_url}</td>',
+            '</tr>',
+            '<tr>',
+            '<th>Execution code revision</th>',
+            f'<td>{self.source_commit}</td>',
             '</tr>',
             '</table>',
             '</div>'
@@ -358,7 +380,7 @@ class ModelParent(MRMInterface):
         for key in self.model_tags:
             html.extend([
                 '<tr>',
-                f'<th>{key}</th>',
+                f'<th><i class="bi bi-tag-fill"></i> {key}</th>',
                 f'<td>{self.model_tags[key]}</td>',
                 '</tr>'
             ])
@@ -377,6 +399,7 @@ class Model(MRMInterface):
             model_version,
             model_timestamp,
             model_stage,
+            model_to_stage,
             model_run
     ):
         self.model_name = model_name
@@ -386,6 +409,7 @@ class Model(MRMInterface):
         self.model_version = model_version
         self.model_timestamp = model_timestamp
         self.model_stage = model_stage
+        self.model_to_stage = model_to_stage
         self.model_run = model_run
 
     def to_html(self, h_level=1):
@@ -403,17 +427,30 @@ class Model(MRMInterface):
             '<tr>',
             '<th>Model version</th>',
             f'<td>{self.model_version}</td>',
-            '</tr>',
-            '<tr>',
-            '<th>Model stage</th>',
-            f'<td><span class="badge badge-secondary">{self.model_stage}</span></td>',
-            '</tr>',
+            '</tr>'
         ]
+
+        if self.model_to_stage:
+            html.extend([
+                '<tr>',
+                '<th>Model stage</th>',
+                f'<td>{self.model_stage.to_html(h_level)} '
+                f'<i class="bi bi-arrow-right"></i>'
+                f' {self.model_to_stage.to_html(h_level)}</td>',
+                '</tr>'
+            ])
+        else:
+            html.extend([
+                '<tr>',
+                '<th>Model stage</th>',
+                f'<td>{self.model_stage.to_html(h_level)}</td>',
+                '</tr>'
+            ])
 
         for key in self.model_tags:
             html.extend([
                 '<tr>',
-                f'<th>{key}</th>',
+                f'<th><i class="bi bi-tag-fill"></i> {key}</th>',
                 f'<td>{self.model_tags[key]}</td>',
                 '</tr>'
             ])

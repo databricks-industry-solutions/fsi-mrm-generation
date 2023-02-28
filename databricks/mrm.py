@@ -1,3 +1,4 @@
+import json
 import logging
 
 import requests
@@ -22,6 +23,7 @@ class ModelRiskApi:
         self.api_job_list = f"{base_url}/api/2.1/jobs/runs/list"
         self.api_job_export = f"{base_url}/api/2.1/jobs/runs/export"
         self.api_registry = f'{base_url}/api/2.0/mlflow/databricks/registered-models/get'
+        self.api_transitions = f'{base_url}/api/2.0/mlflow/transition-requests/list'
         self.api_workspace = f'{base_url}/api/2.0/workspace/export'
 
     @staticmethod
@@ -193,7 +195,7 @@ class ModelRiskApi:
         if model_version in latest_versions_dict.keys():
 
             model_object = latest_versions_dict[model_version]
-            model_stage = model_object['current_stage']
+            model_stage = Stage(model_object['current_stage'])
             model_date = parse_date(model_object['creation_timestamp'])
             model_run_id = model_object['run_id']
             model_owner = model_object['user_id']
@@ -201,6 +203,9 @@ class ModelRiskApi:
             # Retrieve markdown text from registered model
             model_description = self.__extract_model_description(model_object)
             model_tags = self.__extract_model_tags(model_object)
+
+            # Retrieve transition stage - if any
+            model_to_stage = self.__get_transitions(model_name, model_version)
 
             # retrieve LAYER 3 - Model experiment overview
             # Find associated RUN for a given model
@@ -214,6 +219,7 @@ class ModelRiskApi:
                 model_version,
                 model_date,
                 model_stage,
+                model_to_stage,
                 model_run
             )
         else:
@@ -257,21 +263,26 @@ class ModelRiskApi:
                 # TODO: use revision ID
                 source_name = run_tags.get('mlflow.source.name')
                 source_code = self.__get_notebook(source_name)
+                source_commit = run_tags.get('mlflow.databricks.notebookRevisionID')
             elif source_type == 'JOB':
                 # Pull associated JOB output
                 source_name = run_tags.get('mlflow.source.name')
                 source_code = self.__get_notebook_from_job(source_name)
+                source_commit = None
             else:
                 source_name = None
                 source_code = None
+                source_commit = None
 
             if 'mlflow.databricks.gitRepoUrl' in run_tags:
                 source_url = run_tags.get('mlflow.databricks.gitRepoUrl')
+                source_commit = run_tags.get('mlflow.databricks.gitRepoCommit')
             else:
                 source_url = None
         else:
             source_type = None
             source_name = None
+            source_commit = None
             source_url = None
             source_code = None
 
@@ -300,6 +311,7 @@ class ModelRiskApi:
             source_type,
             source_name,
             source_url,
+            source_commit,
             source_code,
             run_cluster,
             run_artifacts,
@@ -346,6 +358,14 @@ class ModelRiskApi:
             return Notebook(matches[0])
         else:
             logger.error("Could not extract notebook content from HTML")
+            return None
+
+    def __process_transitions(self, response):
+        requests_response = response['requests']
+        requests_response_sorted = list(sorted(requests_response, key=lambda x: x['creation_timestamp']))
+        if requests_response_sorted:
+            return Stage(requests_response_sorted[-1]['to_stage'])
+        else:
             return None
 
     def __search_models(self, search_string):
@@ -403,6 +423,15 @@ class ModelRiskApi:
             logger.error(f"Could not find any output content for job [{job_id}]")
             return None
 
+    def __get_transitions(self, model_name, model_version):
+        logger.info(f'Retrieving transition requests for model [{model_name}] version {model_version}')
+        url = f'{self.api_transitions}?name={model_name}&version={model_version}'
+        response = json.loads(requests.get(url=url, headers=self.headers).text)
+        if 'error_code' in response:
+            logger.error(f"Error in transition response, {response['message']}")
+            return None
+        return self.__process_transitions(response)
+
     def __get_notebook(self, remote_path):
         logger.info(f'Retrieving notebook [{remote_path}] associated to model run')
         url = f'{self.api_workspace}?path={remote_path}&format=HTML&direct_download=False'
@@ -447,6 +476,7 @@ class ModelRiskApi:
         model_version = model.model_version
         model_run = model.model_version.model_run
         a_bit_of_space = '<div class="col-xs-12" style="height:100px;"></div>'
+        a_little_bit_of_space = '<div class="col-xs-12" style="height:70px;"></div>'
 
         ##########################################################################################
         ##########################################################################################
@@ -467,8 +497,9 @@ class ModelRiskApi:
         ])
 
         html.extend(model.to_html(h_level=1))
-        html.append(a_bit_of_space)
+        html.append(a_little_bit_of_space)
         if model.model_description:
+            html.append('<small class="text-muted">description from mlflow registry</small>')
             html.extend(model.model_description.to_html(h_level=2))
         else:
             html.extend([
@@ -487,8 +518,9 @@ class ModelRiskApi:
         ])
 
         html.extend(model_version.to_html(h_level=1))
-        html.append(a_bit_of_space)
+        html.append(a_little_bit_of_space)
         if model_version.model_description:
+            html.append('<small class="text-muted">description from mlflow registry</small>')
             html.extend(model_version.model_description.to_html(h_level=2))
         else:
             html.extend([
@@ -507,8 +539,9 @@ class ModelRiskApi:
         ])
 
         html.extend(model_run.to_html(h_level=1))
-        html.append(a_bit_of_space)
+        html.append(a_little_bit_of_space)
         if model_run.run_description:
+            html.append('<small class="text-muted">description from mlflow experiment</small>')
             html.extend(model_run.run_description.to_html(h_level=2))
         else:
             html.extend([

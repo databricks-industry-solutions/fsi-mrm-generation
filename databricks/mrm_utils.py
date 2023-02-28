@@ -49,7 +49,7 @@ def generate_pdf(html_input, output_file):
             '--header-html': 'file://{}'.format(dst_header),
             '--footer-html': 'file://{}'.format(dst_footer),
             'margin-top': '1in',
-            'margin-bottom': '0.6in',
+            'margin-bottom': '1in',
             'margin-right': '1in',
             'margin-left': '1in'
         }

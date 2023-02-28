@@ -19,8 +19,3 @@ body {
 .jumbotron {
   background-color: #f8fafc;
 }
-
-div.divFooter {
-  position: fixed;
-  bottom: 0;
-}
