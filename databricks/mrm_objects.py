@@ -14,7 +14,7 @@ class MRMInterface:
         pass
 
 
-class Stage(MRMInterface):
+class ModelStage(MRMInterface):
     def __init__(self, stage):
         self.stage = stage.upper()
 
@@ -30,7 +30,7 @@ class Stage(MRMInterface):
         return f'<span class="badge {badge}">{self.stage}</span>'
 
 
-class Experiment(MRMInterface):
+class ModelExperiment(MRMInterface):
     def __init__(
             self,
             run_id,
@@ -189,7 +189,7 @@ class ExperimentLoggedModel(MRMInterface):
         raise Exception("Unsupported")
 
 
-class ExperimentRunCluster(MRMInterface):
+class ExperimentCluster(MRMInterface):
     def __init__(
             self,
             name,
@@ -244,20 +244,18 @@ class ExperimentDescription(MRMInterface):
 class ExperimentDataSource(MRMInterface):
     def __init__(
             self,
-            path,
+            name,
             fmt,
-            version,
-            lineage
+            version
     ):
-        self.path = path
+        self.name = name
         self.fmt = fmt
         self.version = version
-        self.lineage = lineage
 
     def to_html(self, h_level=1):
         return [
             '<tr>',
-            f'<td>{self.path}</td>',
+            f'<td>{self.name}</td>',
             f'<td>{self.fmt}</td>',
             f'<td>{self.version}</td>',
             '</tr>'
@@ -271,19 +269,8 @@ class ExperimentDataSources(MRMInterface):
     ):
         self.data_sources = data_sources
 
-    def to_graph_html(self):
-        dot = Digraph(comment='model lineage', format='png', graph_attr={'size': '7.75,10.25'})
-        dot.node('MODEL', label='MODEL', color='black', shape='circle', fontname='courier')
-        for data_source in self.data_sources:
-            dot.edge(string_to_uid(data_source.path), 'MODEL')
-            data_source.lineage.to_graph(dot)
-        b64_img = base64.b64encode(dot.pipe()).decode('ascii')
-        return [
-            '<div class="section-content">',
-            f'<img src="data:image/png;base64, {b64_img}"/>',
-            '<div class="col-xs-12" style="height:20px;"></div>',
-            '</div>'
-        ]
+    def sources(self):
+        return [source.name for source in self.data_sources]
 
     def to_html(self, h_level=1):
         html = [
@@ -350,14 +337,14 @@ class ModelParent(MRMInterface):
             model_tags,
             model_owner,
             model_timestamp,
-            model_version
+            model_submissions
     ):
         self.model_name = model_name
         self.model_description = model_description
         self.model_tags = model_tags
         self.model_owner = model_owner
         self.model_timestamp = model_timestamp
-        self.model_version = model_version
+        self.model_submissions = model_submissions
 
     def to_html(self, h_level=1):
         html = [
@@ -389,28 +376,26 @@ class ModelParent(MRMInterface):
         return html
 
 
-class Model(MRMInterface):
+class ModelSubmission(MRMInterface):
     def __init__(
             self,
-            model_name,
             model_description,
             model_tags,
             model_owner,
             model_version,
             model_timestamp,
             model_stage,
-            model_to_stage,
-            model_run
+            model_transition,
+            model_run_id
     ):
-        self.model_name = model_name
         self.model_description = model_description
         self.model_tags = model_tags
         self.model_owner = model_owner
         self.model_version = model_version
         self.model_timestamp = model_timestamp
         self.model_stage = model_stage
-        self.model_to_stage = model_to_stage
-        self.model_run = model_run
+        self.model_transition = model_transition
+        self.model_run_id = model_run_id
 
     def to_html(self, h_level=1):
         html = [
@@ -430,13 +415,13 @@ class Model(MRMInterface):
             '</tr>'
         ]
 
-        if self.model_to_stage:
+        if self.model_transition:
             html.extend([
                 '<tr>',
                 '<th>Model stage</th>',
                 f'<td>{self.model_stage.to_html(h_level)} '
                 f'<i class="bi bi-arrow-right"></i>'
-                f' {self.model_to_stage.to_html(h_level)}</td>',
+                f' {self.model_transition.to_html(h_level)}</td>',
                 '</tr>'
             ])
         else:
@@ -611,19 +596,47 @@ class Libraries(MRMInterface):
         return html
 
 
-class Lineage:
+class Lineage(MRMInterface):
     def __init__(
             self,
-            source,
-            upstreams
+            data_sources
     ):
-        self.source = source
-        self.upstreams = upstreams
+        self.data_sources = data_sources
+
+    def to_html(self, h_level=1):
+        dot = Digraph(comment='model lineage', format='png', graph_attr={
+            'ratio': 'fill',
+            'margin': '0',
+            'dpi': '50'
+        })
+        dot.node('MODEL', label='MODEL', color='black', shape='circle', fontname='courier')
+        for data_source in self.data_sources:
+            dot.edge(string_to_uid(data_source.short_name()), 'MODEL')
+            data_source.to_graph(dot)
+        b64_img = base64.b64encode(dot.pipe()).decode('ascii')
+        return [
+            '<div class="section-content">',
+            f'<img src="data:image/png;base64, {b64_img}"/>',
+            '<div class="col-xs-12" style="height:20px;"></div>',
+            '</div>'
+        ]
+
+
+class LineageDataSource:
+    def __init__(
+            self,
+            name,
+            children
+    ):
+        self.name = name
+        self.children = children
+
+    def short_name(self):
+        return self.name.split('/')[-1]
 
     def to_graph(self, dot):
-        node_id = string_to_uid(self.source)
-        file_name = self.source.split('/')[-1]
-        dot.node(node_id, label=file_name, color='black', shape='box', fontname='courier')
-        for upstream in self.upstreams:
-            dot.edge(string_to_uid(upstream.source), node_id)
-            upstream.to_graph(dot)
+        node_id = string_to_uid(self.short_name())
+        dot.node(node_id, label=self.short_name(), color='black', shape='box', fontname='courier')
+        for child in self.children:
+            dot.edge(string_to_uid(child.short_name()), node_id)
+            child.to_graph(dot)

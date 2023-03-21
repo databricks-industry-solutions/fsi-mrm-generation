@@ -1,4 +1,3 @@
-import json
 import logging
 
 import requests
@@ -7,6 +6,9 @@ from databricks.mrm_objects import *
 from databricks.mrm_utils import *
 
 logger = logging.getLogger('databricks')
+
+a_bit_of_space = '<div class="col-xs-12" style="height:100px;"></div>'
+a_little_bit_of_space = '<div class="col-xs-12" style="height:70px;"></div>'
 
 
 class ModelRiskApi:
@@ -56,7 +58,7 @@ class ModelRiskApi:
                 num_workers = f'{autoscale.get("min_workers")}-{autoscale.get("max_workers")}'
             else:
                 num_workers = cluster_info.get('autoscale') or None
-            return ExperimentRunCluster(
+            return ExperimentCluster(
                 cluster_info.get('cluster_name') or None,
                 cluster_info.get('spark_version') or None,
                 cluster_info.get('node_type_id') or None,
@@ -65,31 +67,34 @@ class ModelRiskApi:
         else:
             return None
 
-    def __extract_run_data_sources(self, tags):
-        mlflow_data = tags.get('sparkDatasourceInfo') or None
+    @staticmethod
+    def __extract_data_sources_lineage(source_records):
         mlflow_data_records = []
-        if mlflow_data:
-            source_records = mlflow_data.split('\n')
-            for source_record in source_records:
-                source_record_dict = {}
-                source_record_kv_pairs = source_record.split(',')
-                for source_record_kv in source_record_kv_pairs:
-                    kv = source_record_kv.split('=')
-                    source_record_dict[kv[0]] = kv[1]
+        for source_record in source_records:
+            source_record_dict = {}
+            source_record_kv_pairs = source_record.split(',')
+            for source_record_kv in source_record_kv_pairs:
+                kv = source_record_kv.split('=')
+                source_record_dict[kv[0]] = kv[1]
 
-                name = source_record_dict.get('path') or None
-                fmt = source_record_dict.get('format') or None
-                version = source_record_dict.get('version') or None
-                upstream = self.__get_lineage(name)
+            name = source_record_dict.get('path') or None
+            fmt = source_record_dict.get('format') or None
+            version = source_record_dict.get('version') or None
 
-                mlflow_data_records.append(ExperimentDataSource(
-                    name,
-                    fmt,
-                    version,
-                    Lineage(name, upstream)
-                ))
-
+            mlflow_data_records.append(ExperimentDataSource(
+                name,
+                fmt,
+                version,
+            ))
         return ExperimentDataSources(mlflow_data_records)
+
+    @staticmethod
+    def __extract_run_data_sources(tags):
+        mlflow_data = tags.get('sparkDatasourceInfo') or None
+        if mlflow_data:
+            return mlflow_data.split('\n')
+        else:
+            return []
 
     @staticmethod
     def __extract_run_artifact_signature(fields):
@@ -160,25 +165,37 @@ class ModelRiskApi:
             return None
 
     @staticmethod
-    def __process_search(response):
-        run_ids = []
-        for registered_model in response['registered_models']:
-            if 'latest_versions' in registered_model:
-                registered_versions = registered_model['latest_versions']
-                registered_versions = sorted(registered_versions, key=lambda x: int(x['version']))
-                latest_version = registered_versions[-1]
-                if 'run_id' in latest_version:
-                    run_ids.append(latest_version['run_id'])
-        return run_ids
-
-    @staticmethod
-    def __process_model_version(response):
+    def __get_latest_model_version(response):
         latest_versions = response['registered_model_databricks']['latest_versions']
         return int(sorted(latest_versions, key=lambda x: int(x['version']))[-1]['version'])
 
-    def __process_model(self, response, model_name, model_version):
+    def __process_model_submission(self, response, model_name, model_version):
 
-        # retrieve LAYER 1 - Model registered across versions
+        model_stage = ModelStage(response['current_stage'])
+        model_date = parse_date(response['creation_timestamp'])
+        model_run_id = response['run_id']
+        model_owner = response['user_id']
+
+        # Retrieve markdown text from registered model
+        model_description = self.__extract_model_description(response)
+        model_tags = self.__extract_model_tags(response)
+
+        # Retrieve transition stage - if any
+        model_transition = self.__get_transition(model_name, model_version)
+
+        return ModelSubmission(
+            model_description,
+            model_tags,
+            model_owner,
+            model_version,
+            model_date,
+            model_stage,
+            model_transition,
+            model_run_id
+        )
+
+    def __process_model_parent(self, response, model_name):
+
         model_parent = response['registered_model_databricks']
         model_parent_owner = model_parent['user_id']
         model_parent_creation = parse_date(model_parent['creation_timestamp'])
@@ -186,44 +203,10 @@ class ModelRiskApi:
         model_parent_tags = self.__extract_model_tags(model_parent)
         model_parent_latest_versions = model_parent['latest_versions']
 
-        # retrieve LAYER 2 - Model submission overview for a given version
-        latest_versions_dict = {}
+        model_submissions = {}
         for revision in model_parent_latest_versions:
             revision_version = int(revision['version'])
-            latest_versions_dict[revision_version] = revision
-
-        if model_version in latest_versions_dict.keys():
-
-            model_object = latest_versions_dict[model_version]
-            model_stage = Stage(model_object['current_stage'])
-            model_date = parse_date(model_object['creation_timestamp'])
-            model_run_id = model_object['run_id']
-            model_owner = model_object['user_id']
-
-            # Retrieve markdown text from registered model
-            model_description = self.__extract_model_description(model_object)
-            model_tags = self.__extract_model_tags(model_object)
-
-            # Retrieve transition stage - if any
-            model_to_stage = self.__get_transitions(model_name, model_version)
-
-            # retrieve LAYER 3 - Model experiment overview
-            # Find associated RUN for a given model
-            model_run = self.__get_run(model_run_id)
-
-            model_submission = Model(
-                model_name,
-                model_description,
-                model_tags,
-                model_owner,
-                model_version,
-                model_date,
-                model_stage,
-                model_to_stage,
-                model_run
-            )
-        else:
-            model_submission = None
+            model_submissions[revision_version] = revision
 
         return ModelParent(
             model_name,
@@ -231,7 +214,7 @@ class ModelRiskApi:
             model_parent_tags,
             model_parent_owner,
             model_parent_creation,
-            model_submission
+            model_submissions
         )
 
     def __process_run(self, response, run_id):
@@ -297,7 +280,7 @@ class ModelRiskApi:
         else:
             run_metrics = {}
 
-        return Experiment(
+        return ModelExperiment(
             run_id,
             run_description,
             run_user,
@@ -339,14 +322,14 @@ class ModelRiskApi:
         return None
 
     def __process_lineage(self, response):
-        upstreams_coordinates = []
+        children = []
         if 'upstreams' in response:
             upstreams = response['upstreams']
             for upstream in upstreams:
-                source_name = self.__extract_source_lineage_name(upstream)
-                upstream_sources = self.__get_lineage(source_name)
-                upstreams_coordinates.append(Lineage(source_name, upstream_sources))
-        return upstreams_coordinates
+                upstream_source = self.__extract_source_lineage_name(upstream)
+                upstream_lineage = self.__get_lineage_rec(upstream_source)
+                children.append(upstream_lineage)
+        return children
 
     @staticmethod
     def __process_notebook(html_content):
@@ -360,43 +343,26 @@ class ModelRiskApi:
             logger.error("Could not extract notebook content from HTML")
             return None
 
-    def __process_transitions(self, response):
-        requests_response = response['requests']
-        requests_response_sorted = list(sorted(requests_response, key=lambda x: x['creation_timestamp']))
-        if requests_response_sorted:
-            return Stage(requests_response_sorted[-1]['to_stage'])
+    @staticmethod
+    def __process_transition(response):
+        if 'requests' in response:
+            requests_response = response['requests']
+            requests_response_sorted = list(sorted(requests_response, key=lambda x: x['creation_timestamp']))
+            if requests_response_sorted:
+                return ModelStage(requests_response_sorted[-1]['to_stage'])
+            else:
+                return None
         else:
             return None
 
-    def __search_models(self, search_string):
-        logger.info('Searching models from mlflow API')
-        url = f"{self.api_search}?filter={search_string}"
-        response = json.loads(requests.get(url=url, headers=self.headers).text)
-        if 'error_code' in response:
-            logger.error(f"Error in model response, {response['message']}")
-            return []
-        run_ids = self.__process_search(response)
-        logger.info('Retrieved {} model(s) from mlflow API'.format(len(run_ids)))
-        return run_ids
-
-    def __get_model_latest(self, model_name):
-        logger.info(f'Retrieving latest model [{model_name}] from mlflow API')
+    def __get_model_parent(self, model_name):
+        logger.info(f'Retrieving model [{model_name}] from mlflow API')
         url = f'{self.api_registry}?name={model_name}'
         response = json.loads(requests.get(url=url, headers=self.headers).text)
         if 'error_code' in response:
             logger.error(f"Error in model response, {response['message']}")
             return None
-        latest_version = self.__process_model_version(response)
-        return self.__get_model(model_name, latest_version)
-
-    def __get_model(self, model_name, model_version):
-        logger.info(f'Retrieving model [{model_name}] (v{model_version}) from mlflow API')
-        url = f'{self.api_registry}?name={model_name}'
-        response = json.loads(requests.get(url=url, headers=self.headers).text)
-        if 'error_code' in response:
-            logger.error(f"Error in model response, {response['message']}")
-            return None
-        return self.__process_model(response, model_name, model_version)
+        return self.__process_model_parent(response, model_name)
 
     def __get_run(self, run_id):
         logger.info(f'Retrieving run_id [{run_id}] associated to model')
@@ -423,14 +389,14 @@ class ModelRiskApi:
             logger.error(f"Could not find any output content for job [{job_id}]")
             return None
 
-    def __get_transitions(self, model_name, model_version):
+    def __get_transition(self, model_name, model_version):
         logger.info(f'Retrieving transition requests for model [{model_name}] version {model_version}')
         url = f'{self.api_transitions}?name={model_name}&version={model_version}'
         response = json.loads(requests.get(url=url, headers=self.headers).text)
         if 'error_code' in response:
             logger.error(f"Error in transition response, {response['message']}")
             return None
-        return self.__process_transitions(response)
+        return self.__process_transition(response)
 
     def __get_notebook(self, remote_path):
         logger.info(f'Retrieving notebook [{remote_path}] associated to model run')
@@ -442,16 +408,19 @@ class ModelRiskApi:
         html_org_content = str(base64.b64decode(response['content']), 'utf-8')
         return self.__process_notebook(html_org_content)
 
-    def __get_lineage(self, data_source):
-        logger.info(f'Retrieving lineage for data source [{data_source}]')
-        url = f'{self.api_lineage}?table_name={data_source}'
+    def __get_lineage_rec(self, data_source_name):
+        logger.info(f'Retrieving lineage for data source [{data_source_name}]')
+        url = f'{self.api_lineage}?table_name={data_source_name}'
         response = json.loads(requests.get(url=url, headers=self.headers).text)
         if 'error_code' in response:
             logger.error(f"Error in lineage response, {response['message']}")
-            # end of recursion
-            return []
-        # Get all upstream sources recursively
-        return self.__process_lineage(response)
+            children = []
+        else:
+            children = self.__process_lineage(response)
+        return LineageDataSource(data_source_name, children)
+
+    def __get_lineage(self, data_source_names):
+        return Lineage([self.__get_lineage_rec(data_source_name) for data_source_name in data_source_names])
 
     def generate_doc(self, model_name, output_file, model_version=None):
 
@@ -459,24 +428,41 @@ class ModelRiskApi:
 
         if model_version:
             logger.info(f'Generating MRM output for model [{model_name}] (v{model_version})')
-            model = self.__get_model(model_name, model_version)
         else:
             logger.info(f'Generating MRM output for latest model [{model_name}]')
-            model = self.__get_model_latest(model_name)
 
-        if not model:
-            raise Exception(f'Could not retrieve model {model_name}')
+        model_parent = self.__get_model_parent(model_name)
+        if not model_parent:
+            raise Exception(f"Could not find model {model_name} on ml registry")
 
-        if not model.model_version:
-            raise Exception(f'Could not retrieve model version {model_name}')
+        if model_version:
+            if model_version in model_parent.model_submissions.keys():
+                model_submission_response = model_parent.model_submissions[model_version]
+                model_submission = self.__process_model_submission(model_submission_response, model_name, model_version)
+            else:
+                raise Exception(f'Could not find version {model_version} for model {model_name}, make sure version '
+                                f'is the latest version for the given stage')
+        else:
+            model_latest_version = sorted(model_parent.model_submissions.keys())[-1]
+            logger.info(f'Found latest version {model_latest_version} for model [{model_name}]')
+            model_submission_response = model_parent.model_submissions[model_latest_version]
+            model_submission = self.__process_model_submission(model_submission_response, model_name,
+                                                               model_latest_version)
 
-        if not model.model_version.model_run:
-            raise Exception(f'Could not retrieve experiment associated to model {model_name}')
+        model_run = self.__get_run(model_submission.model_run_id)
+        if not model_run:
+            raise Exception(f"Could not find experiment {model_submission.model_run_id} "
+                            f"associated with model {model_name}")
 
-        model_version = model.model_version
-        model_run = model.model_version.model_run
-        a_bit_of_space = '<div class="col-xs-12" style="height:100px;"></div>'
-        a_little_bit_of_space = '<div class="col-xs-12" style="height:70px;"></div>'
+        if model_run.run_data_sources:
+            data_sources = self.__extract_data_sources_lineage(model_run.run_data_sources)
+        else:
+            data_sources = None
+
+        if data_sources:
+            data_lineage = self.__get_lineage(data_sources.sources())
+        else:
+            data_lineage = None
 
         ##########################################################################################
         ##########################################################################################
@@ -496,11 +482,12 @@ class ModelRiskApi:
             a_bit_of_space
         ])
 
-        html.extend(model.to_html(h_level=1))
+        html.extend(model_parent.to_html(h_level=1))
         html.append(a_little_bit_of_space)
-        if model.model_description:
+
+        if model_parent.model_description:
             html.append('<small class="text-muted">description from mlflow registry</small>')
-            html.extend(model.model_description.to_html(h_level=2))
+            html.extend(model_parent.model_description.to_html(h_level=2))
         else:
             html.extend([
                 '<div class="alert alert-warning section-content" role="alert">',
@@ -510,6 +497,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-break section-content">',
             f'<h1>{verbatim["mlflow_model_version"]["header"]}</h1>',
@@ -517,11 +505,11 @@ class ModelRiskApi:
             a_bit_of_space
         ])
 
-        html.extend(model_version.to_html(h_level=1))
+        html.extend(model_submission.to_html(h_level=1))
         html.append(a_little_bit_of_space)
-        if model_version.model_description:
+        if model_submission.model_description:
             html.append('<small class="text-muted">description from mlflow registry</small>')
-            html.extend(model_version.model_description.to_html(h_level=2))
+            html.extend(model_submission.model_description.to_html(h_level=2))
         else:
             html.extend([
                 '<div class="alert alert-warning section-content" role="alert">',
@@ -531,6 +519,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-break section-content">',
             f'<h1>{verbatim["mlflow_model_version_run"]["header"]}</h1>',
@@ -552,6 +541,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-break section-content">',
             f'<h1>{verbatim["implementation"]["header"]}</h1>',
@@ -561,6 +551,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-content">',
             f'<h2>{verbatim["implementation_artifacts"]["header"]}</h2>',
@@ -578,6 +569,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-break section-content">',
             f'<h2>{verbatim["implementation_approach"]["header"]}</h2>',
@@ -595,6 +587,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-break section-content">',
             f'<h2>{verbatim["model_parameters"]["header"]}</h2>',
@@ -612,6 +605,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-break section-content">',
             f'<h2>{verbatim["model_metrics"]["header"]}</h2>',
@@ -629,6 +623,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-break section-content">',
             f'<h1>{verbatim["model_dependencies"]["header"]}</h1>',
@@ -638,6 +633,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-content">',
             f'<h2>{verbatim["model_dependencies_infra"]["header"]}</h2>',
@@ -655,6 +651,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-content">',
             f'<h2>{verbatim["model_dependencies_libraries"]["header"]}</h2>',
@@ -673,6 +670,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-break section-content">',
             f'<h2>{verbatim["model_signature"]["header"]}</h2>',
@@ -692,6 +690,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-content">',
             f'<h2>{verbatim["model_dependencies_data"]["header"]}</h2>',
@@ -699,8 +698,8 @@ class ModelRiskApi:
             '</div>'
         ])
 
-        if model_run.run_data_sources:
-            html.extend(model_run.run_data_sources.to_html(h_level=2))
+        if data_sources:
+            html.extend(data_sources.to_html(h_level=2))
         else:
             html.extend([
                 '<div class="alert alert-warning section-content" role="alert">',
@@ -710,6 +709,7 @@ class ModelRiskApi:
 
         ##########################################################################################
         ##########################################################################################
+
         html.extend([
             '<div class="section section-break section-content">',
             f'<h2>{verbatim["model_dependencies_lineage"]["header"]}</h2>',
@@ -717,8 +717,8 @@ class ModelRiskApi:
             '</div>'
         ])
 
-        if model_run.run_data_sources:
-            html.extend(model_run.run_data_sources.to_graph_html())
+        if data_lineage:
+            html.extend(data_lineage.to_html())
         else:
             html.extend([
                 '<div class="alert alert-warning section-content" role="alert">',
@@ -729,5 +729,4 @@ class ModelRiskApi:
         ##########################################################################################
         ##########################################################################################
 
-        # generate PDF
         generate_pdf(html, output_file)
