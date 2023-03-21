@@ -355,13 +355,30 @@ class ModelRiskApi:
         else:
             return None
 
+    def __get_model_submission(self, model_name, model_version, model_parent):
+        if model_version:
+            if model_version in model_parent.model_submissions.keys():
+                model_submission_response = model_parent.model_submissions[model_version]
+                model_submission = self.__process_model_submission(model_submission_response, model_name, model_version)
+            else:
+                # We do not wish to proceed if model version is not found
+                raise Exception(f'Could not find version {model_version} for model {model_name}, make sure version '
+                                f'is the latest version for the given stage')
+        else:
+            model_latest_version = sorted(model_parent.model_submissions.keys())[-1]
+            logger.info(f'Found version {model_latest_version} for model [{model_name}]')
+            model_submission_response = model_parent.model_submissions[model_latest_version]
+            model_submission = self.__process_model_submission(model_submission_response, model_name,
+                                                               model_latest_version)
+        return model_submission
+
     def __get_model_parent(self, model_name):
         logger.info(f'Retrieving model [{model_name}] from mlflow API')
         url = f'{self.api_registry}?name={model_name}'
         response = json.loads(requests.get(url=url, headers=self.headers).text)
         if 'error_code' in response:
-            logger.error(f"Error in model response, {response['message']}")
-            return None
+            # We do not wish to proceed if model is not found
+            raise Exception(f"Could not find model {model_name} on ml registry")
         return self.__process_model_parent(response, model_name)
 
     def __get_run(self, run_id):
@@ -369,8 +386,8 @@ class ModelRiskApi:
         url = f'{self.api_run}?run_id={run_id}'
         response = json.loads(requests.get(url=url, headers=self.headers).text)
         if 'error_code' in response:
-            logger.error(f"Error is run response, {response['message']}")
-            return None
+            # We do not wish to proceed if experiment is not found
+            raise Exception(f"Could not find experiment {run_id}")
         return self.__process_run(response, run_id)
 
     def __get_notebook_from_job(self, job_id):
@@ -409,7 +426,6 @@ class ModelRiskApi:
         return self.__process_notebook(html_org_content)
 
     def __get_lineage_rec(self, data_source_name):
-        logger.info(f'Retrieving lineage for data source [{data_source_name}]')
         url = f'{self.api_lineage}?table_name={data_source_name}'
         response = json.loads(requests.get(url=url, headers=self.headers).text)
         if 'error_code' in response:
@@ -420,48 +436,34 @@ class ModelRiskApi:
         return LineageDataSource(data_source_name, children)
 
     def __get_lineage(self, data_source_names):
+        logger.info(f'Retrieving data lineage for {len(data_source_names)} data source(s)')
         return Lineage([self.__get_lineage_rec(data_source_name) for data_source_name in data_source_names])
 
     def generate_doc(self, model_name, output_file, model_version=None):
-
-        verbatim = load_verbatim()
 
         if model_version:
             logger.info(f'Generating MRM output for model [{model_name}] (v{model_version})')
         else:
             logger.info(f'Generating MRM output for latest model [{model_name}]')
 
+        # load our text
+        verbatim = load_verbatim()
+
+        # retrieve model from MLRegistry
         model_parent = self.__get_model_parent(model_name)
-        if not model_parent:
-            raise Exception(f"Could not find model {model_name} on ml registry")
 
-        if model_version:
-            if model_version in model_parent.model_submissions.keys():
-                model_submission_response = model_parent.model_submissions[model_version]
-                model_submission = self.__process_model_submission(model_submission_response, model_name, model_version)
-            else:
-                raise Exception(f'Could not find version {model_version} for model {model_name}, make sure version '
-                                f'is the latest version for the given stage')
-        else:
-            model_latest_version = sorted(model_parent.model_submissions.keys())[-1]
-            logger.info(f'Found latest version {model_latest_version} for model [{model_name}]')
-            model_submission_response = model_parent.model_submissions[model_latest_version]
-            model_submission = self.__process_model_submission(model_submission_response, model_name,
-                                                               model_latest_version)
+        # retrieve submitted version from MLRegistry
+        model_submission = self.__get_model_submission(model_name, model_version, model_parent)
 
+        # retrieve model experiment from experiment tracker
         model_run = self.__get_run(model_submission.model_run_id)
-        if not model_run:
-            raise Exception(f"Could not find experiment {model_submission.model_run_id} "
-                            f"associated with model {model_name}")
 
+        # retrieve model data input and lineage
         if model_run.run_data_sources:
             data_sources = self.__extract_data_sources_lineage(model_run.run_data_sources)
-        else:
-            data_sources = None
-
-        if data_sources:
             data_lineage = self.__get_lineage(data_sources.sources())
         else:
+            data_sources = None
             data_lineage = None
 
         ##########################################################################################
