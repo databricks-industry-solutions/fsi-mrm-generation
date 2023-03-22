@@ -12,12 +12,41 @@ import yaml
 from . import tmpl
 
 
-def load_verbatim():
-    return yaml.safe_load(pkg_resources.read_text(tmpl, 'verbatim.yml'))
+def load_verbatim(verbatim_file=None):
+    """
+    We do not wish to hardcode all text for our given PDF output but rather enable users to override their own
+    narrative.
+    :param verbatim_file: optional path for YAML file including all desired narrative
+    :return: parse YAML object that will be pulled in PDF content
+    """
+    if verbatim_file:
+        with open(verbatim_file, 'r') as f:
+            return yaml.safe_load(f.read())
+    else:
+        return yaml.safe_load(pkg_resources.read_text(tmpl, 'verbatim.yml'))
+
+
+def extract_tags(model_object):
+    """
+    Utility function converting MLFlow tag object to key value pairs
+    :param model_object:
+    :return:
+    """
+    if 'tags' in model_object:
+        return key_value_to_dict(model_object['tags'])
+    else:
+        return {}
 
 
 def generate_pdf(html_input, output_file):
-
+    """
+    Utility function that will convert raw HTML to glossy PDF. To do so, we load HTML template and relevant CSS file,
+    copy all assets to a temporary folder and convert the whole as well defined PDF output. The latter will leverage
+    pdfkit library and its native binary (that needs to be installed)
+    :param html_input: input RAW HTML file for our model
+    :param output_file: the output file to write PDF to
+    :return: None
+    """
     # Create HTML file
     with pkg_resources.path(tmpl, 'mrm.html') as p:
         html_output = p.read_text().format(html_body='\n'.join(html_input))
@@ -59,6 +88,11 @@ def generate_pdf(html_input, output_file):
 
 
 def image_to_html(data_entry):
+    """
+    Convert an image from a notebook or description into bootstrap compatible HTML input
+    :param data_entry: the encoded based 64 image
+    :return: well formatted HTML output
+    """
     return [
         '<div>',
         '<figure class="image">',
@@ -69,10 +103,27 @@ def image_to_html(data_entry):
 
 
 def demote_markdown(md, h_level):
+    """
+    Markdown can easily be converted to HTML using markdown library. Even better, markdown itself supports HTML.
+    However, markdown may contain title that will conflict with our original HTML header. We therefore need to
+    "demote" title to lower heading if needed.
+    :param md: the original markdown file
+    :param h_level: the desired level to start our heading indexing
+    :return: demoted markdown
+    """
     return re.sub('#\\s', '#' * (h_level + 1) + ' ', md)
 
 
 def markdown_to_html(command_value, h_level=1, container=False):
+    """
+    Markdown can easily be converted to HTML using markdown library. Even better, markdown itself supports HTML.
+    However, markdown may contain title that will conflict with our original HTML header. We therefore need to
+    "demote" title to lower heading if needed.
+    :param command_value: the original markdown value
+    :param h_level: the desired level to start our heading indexing
+    :param container: a boolean indicating the type of HTML output we need, a container or simple description
+    :return: well formatted HTML code including markdown information
+    """
     text = re.sub('%md\n*', '', command_value)
     text = demote_markdown(text, h_level)
     if container:

@@ -607,7 +607,7 @@ class Lineage(MRMInterface):
         dot = Digraph(comment='model lineage', format='png', graph_attr={
             'ratio': 'fill',
             'margin': '0',
-            'dpi': '50'
+            'dpi': '600'
         })
         dot.node('MODEL', label='MODEL', color='black', shape='circle', fontname='courier')
         for data_source in self.data_sources:
@@ -616,7 +616,7 @@ class Lineage(MRMInterface):
         b64_img = base64.b64encode(dot.pipe()).decode('ascii')
         return [
             '<div class="section-content">',
-            f'<img src="data:image/png;base64, {b64_img}"/>',
+            f'<img src="data:image/png;base64, {b64_img}" width="1150"/>',
             '<div class="col-xs-12" style="height:20px;"></div>',
             '</div>'
         ]
