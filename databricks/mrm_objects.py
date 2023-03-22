@@ -10,7 +10,7 @@ from databricks.mrm_utils import *
 
 class MRMInterface:
     @abc.abstractmethod
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         pass
 
 
@@ -18,7 +18,7 @@ class ModelStage(MRMInterface):
     def __init__(self, stage):
         self.stage = stage.upper()
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         if self.stage == 'STAGING':
             badge = 'badge-warning'
         elif self.stage == 'ARCHIVED':
@@ -71,7 +71,7 @@ class ModelExperiment(MRMInterface):
         self.source_commit = source_commit
         self.run_libraries = run_libraries
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         return [
             '<div class="section-content">',
             '<table class="table">',
@@ -115,7 +115,7 @@ class ExperimentMetrics(MRMInterface):
     ):
         self.metrics = metrics
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
 
         html = []
         html.extend([
@@ -148,13 +148,13 @@ class ExperimentParameters(MRMInterface):
     ):
         self.parameters = parameters
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         html = []
         html.extend([
             '<div class="section-content">',
             '<table class="table">',
             '<tr>',
-            '<th>Param</th>',
+            '<th>Parameter</th>',
             '<th>Value</th>',
             '</tr>',
         ])
@@ -185,7 +185,7 @@ class ExperimentLoggedModel(MRMInterface):
         self.outputs = outputs
         self.flavor = flavor
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         raise Exception("Unsupported")
 
 
@@ -202,7 +202,7 @@ class ExperimentCluster(MRMInterface):
         self.cloud_instance = cloud_instance
         self.num_workers = num_workers
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         return [
             '<div class="section-content">',
             '<table class="table">',
@@ -234,7 +234,7 @@ class ExperimentDescription(MRMInterface):
     ):
         self.description = description
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         html = ['<div class="section-content">']
         html.extend(markdown_to_html(self.description, h_level=h_level, container=True))
         html.append('</div>')
@@ -252,7 +252,7 @@ class ExperimentDataSource(MRMInterface):
         self.fmt = fmt
         self.version = version
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         return [
             '<tr>',
             f'<td>{self.name}</td>',
@@ -272,7 +272,7 @@ class ExperimentDataSources(MRMInterface):
     def sources(self):
         return [source.name for source in self.data_sources]
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         html = [
             '<div class="section-content">',
             '<table class="table">',
@@ -299,7 +299,7 @@ class Notebook(MRMInterface):
     ):
         self.content = content
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         org_notebook = base64.b64decode(self.content).decode('utf-8')
         org_notebook = json.loads(unquote(org_notebook))
         html_body = ['<div class="section">']
@@ -346,7 +346,7 @@ class ModelParent(MRMInterface):
         self.model_timestamp = model_timestamp
         self.model_submissions = model_submissions
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         html = [
             '<div class="section-content">',
             '<table class="table">',
@@ -397,7 +397,7 @@ class ModelSubmission(MRMInterface):
         self.model_transition = model_transition
         self.model_run_id = model_run_id
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         html = [
             '<div class="section-content">',
             '<table class="table">',
@@ -451,7 +451,7 @@ class ModelDescription(MRMInterface):
     ):
         self.description = description
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         html = ['<div class="section-content">']
         html.extend(markdown_to_html(self.description, h_level=h_level, container=True))
         html.append('</div>')
@@ -465,7 +465,7 @@ class Artifacts(MRMInterface):
     ):
         self.artifacts = artifacts
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         html = [
             '<div class="section-content">',
             '<table class="table">',
@@ -495,7 +495,7 @@ class Artifact(MRMInterface):
         self.flavors = flavors
         self.signature = signature
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         html = []
         for flavor in self.flavors:
             html.extend(['<tr>', f'<td>{self.created}</td>'])
@@ -513,7 +513,7 @@ class ArtifactFlavor(MRMInterface):
         self.flavor_type = flavor_type
         self.flavor_version = flavor_version
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         return [
             f'<td><span class="badge badge-secondary">{self.flavor_type}</span></td>'
             f'<td>{self.flavor_version}</td>'
@@ -529,7 +529,7 @@ class ArtifactSignature(MRMInterface):
         self.inputs = inputs
         self.outputs = outputs
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         dot = Digraph(comment='model signature', format='png', graph_attr={'rankdir': 'LR', 'size': '7.75,10.25'})
         dot.node(str(0), label='MODEL', color='black', shape='circle', fontname='courier')
         for i, field in enumerate(self.inputs):
@@ -556,7 +556,7 @@ class Library(MRMInterface):
         self.repository = repository
         self.artifact = artifact
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         return [
             '<tr>',
             f'<td>{self.repository}</td>',
@@ -578,7 +578,7 @@ class Libraries(MRMInterface):
         else:
             return False
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         html = [
             '<div class="section-content">',
             '<table class="table">',
@@ -603,7 +603,7 @@ class Lineage(MRMInterface):
     ):
         self.data_sources = data_sources
 
-    def to_html(self, h_level=1):
+    def to_html(self, h_level=1, dot=None):
         dot = Digraph(comment='model lineage', format='png', graph_attr={
             'ratio': 'fill',
             'margin': '0',
@@ -612,7 +612,7 @@ class Lineage(MRMInterface):
         dot.node('MODEL', label='MODEL', color='black', shape='circle', fontname='courier')
         for data_source in self.data_sources:
             dot.edge(string_to_uid(data_source.short_name()), 'MODEL')
-            data_source.to_graph(dot)
+            data_source.to_html(dot=dot)
         b64_img = base64.b64encode(dot.pipe()).decode('ascii')
         return [
             '<div class="section-content">',
@@ -622,7 +622,7 @@ class Lineage(MRMInterface):
         ]
 
 
-class LineageDataSource:
+class LineageDataSource(MRMInterface):
     def __init__(
             self,
             name,
@@ -634,7 +634,7 @@ class LineageDataSource:
     def short_name(self):
         return self.name.split('/')[-1]
 
-    def to_graph(self, dot):
+    def to_html(self, h_level=1, dot=None):
         node_id = string_to_uid(self.short_name())
         dot.node(node_id, label=self.short_name(), color='black', shape='box', fontname='courier')
         for child in self.children:

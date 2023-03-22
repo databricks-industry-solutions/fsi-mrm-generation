@@ -31,16 +31,16 @@ mrm = ModelRiskApi(
 )
 
 mrm.generate_doc(
-    model_name,
-    pdf_output_file,
-    model_version=model_version
+    model_name=model_name, # name of the model on ML registry
+    model_version=model_version, # version of the model (optional, default is latest)
+    output_file=output_file # name of the output file for PDF document
 )
 ```
 
 See example [output](mrm_output.pdf) for a given test model done using an existing solution 
 [accelerator](https://github.com/databricks-industry-solutions/value-at-risk). 
 
-Make sure to have both wkhtmltopdf and graphviz binary installed
+Make sure to have both `wkhtmltopdf` and `graphviz` binary installed
 
 ```bash
 sudo apt-get install -y graphviz wkhtmltopdf
@@ -66,5 +66,5 @@ materiality and different organizations' policies. We highly encourage practitio
 cover their organizations' internal policies. For policies not programmatically covered by the use of databricks
 notebooks, clusters, mlflow or unity catalog, it becomes the responsibility of industry practitioners to complement the
 same through the use of additional markdown documentation. We highly recommend organizations and their compliance teams
-to standardize a series of controls as a form of
-'template notebooks' data team can follow as part of their development practices.*
+to standardize a series of controls as a form of 'template notebooks' data team can follow as part of their development 
+practices.*
