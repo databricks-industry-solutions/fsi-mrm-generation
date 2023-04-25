@@ -6,6 +6,7 @@ import shutil
 import tempfile
 
 import markdown
+import mdtex2html
 import pdfkit
 import yaml
 
@@ -61,30 +62,30 @@ def generate_pdf(html_input, output_file):
 
     # Copy HTML assets
     asset_dir = os.path.join(temp_dir.name, 'assets')
-    with pkg_resources.path(tmpl, 'assets') as f:
-        shutil.copytree(f, asset_dir)
+    asset_src_dir = os.path.join(os.path.dirname(tmpl.__file__), 'assets')
+    shutil.copytree(asset_src_dir, asset_dir)
 
-        # loading header file
-        with pkg_resources.path(tmpl, 'header.html') as f:
-            dst_header = os.path.join(os.getcwd(), f)
+    # loading header file
+    with pkg_resources.path(tmpl, 'header.html') as f:
+        dst_header = os.path.join(os.getcwd(), f)
 
-        # loading footer file
-        with pkg_resources.path(tmpl, 'footer.html') as f:
-            dst_footer = os.path.join(os.getcwd(), f)
+    # loading footer file
+    with pkg_resources.path(tmpl, 'footer.html') as f:
+        dst_footer = os.path.join(os.getcwd(), f)
 
-        # formatting options
-        options = {
-            'enable-local-file-access': None,
-            '--header-html': 'file://{}'.format(dst_header),
-            '--footer-html': 'file://{}'.format(dst_footer),
-            'margin-top': '1in',
-            'margin-bottom': '1in',
-            'margin-right': '1in',
-            'margin-left': '1in'
-        }
+    # formatting options
+    options = {
+        'enable-local-file-access': None,
+        '--header-html': 'file://{}'.format(dst_header),
+        '--footer-html': 'file://{}'.format(dst_footer),
+        'margin-top': '1in',
+        'margin-bottom': '1in',
+        'margin-right': '1in',
+        'margin-left': '1in'
+    }
 
-        # generate pdf
-        pdfkit.from_file(html_output_file, output_file, verbose=True, options=options)
+    # generate pdf
+    pdfkit.from_file(html_output_file, output_file, verbose=True, options=options)
 
 
 def image_to_html(data_entry):
@@ -127,9 +128,9 @@ def markdown_to_html(command_value, h_level=1, container=False):
     text = re.sub('%md\n*', '', command_value)
     text = demote_markdown(text, h_level)
     if container:
-        return [f'<div class="container jumbotron">', markdown.markdown(text), '</div>']
+        return [f'<div class="container jumbotron">', mdtex2html.convert(text), '</div>']
     else:
-        return [f'<div>', markdown.markdown(text), '</div>']
+        return [f'<div>', mdtex2html.convert(text), '</div>']
 
 
 def key_value_to_dict(kv_pairs):
