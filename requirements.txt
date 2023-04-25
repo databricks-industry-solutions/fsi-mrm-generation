@@ -1,5 +1,4 @@
 PyYAML==6.0
-markdown==3.4.1
 mdtex2html==1.2.0
 graphviz==0.20.1
 pdfkit==1.0.0
