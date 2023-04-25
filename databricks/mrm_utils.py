@@ -5,7 +5,6 @@ import re
 import shutil
 import tempfile
 
-import markdown
 import mdtex2html
 import pdfkit
 import yaml
