@@ -46,6 +46,19 @@ Make sure to have both `wkhtmltopdf` and `graphviz` binary installed
 sudo apt-get install -y graphviz wkhtmltopdf
 ```
 
+## Template documentation
+
+This utility library provides a technical foundation and framework to automatically 
+generate the document and represents one side of the coin. The other side relates to the 
+design, the structure and the content of the document that relates to the model in scope. 
+With subject matter expertise supporting several model frameworks, regulator guidelines and 
+custom needs of many FS institutions, the MRM suite from [EY Canada](https://www.ey.com/en_ca) provides proven model 
+documentation templates corresponding to business domains in the financial services industry.
+
+See an example of [template](templates/Credit_Adjudication.dbc) document for Credit Risk Adjudication use case. 
+Available as a DBC file, this template provides the necessary placemat through markdown comments to generate the 
+necessary documentation for Model Risk Management.
+
 ## License
 
 © 2023 Databricks, Inc. All rights reserved. The source is provided subject to the Databricks License
@@ -55,16 +68,7 @@ set forth below.
 | library                          | description         | license | source                                     |
 |----------------------------------|---------------------|---------|--------------------------------------------|
 | PyYAML                           | Yaml parser         | MIT     | https://pypi.org/project/PyYAML/           |
-| markdown                         | Markdown parser     | MIT     | https://pypi.org/project/markdown2/        |
+| mdtex2html                       | Markdown parser     | MIT     | https://pypi.org/project/mdtex2html/        |
 | graphviz                         | Graph visualization | MIT     | https://pypi.org/project/graphviz/         |
 | pdfkit                           | html to pdf         | MIT     | https://pypi.org/project/pdfkit/           |
 
-
-*Please note that this utility library was built as a framework rather than as an end product. As generic as possible,
-this framework may not accommodate every specific requirements across different model strategies, different model
-materiality and different organizations' policies. We highly encourage practitioners to build upon this framework to
-cover their organizations' internal policies. For policies not programmatically covered by the use of databricks
-notebooks, clusters, mlflow or unity catalog, it becomes the responsibility of industry practitioners to complement the
-same through the use of additional markdown documentation. We highly recommend organizations and their compliance teams
-to standardize a series of controls as a form of 'template notebooks' data team can follow as part of their development 
-practices.*
