@@ -55,6 +55,8 @@ With subject matter expertise supporting several model frameworks, regulator gui
 custom needs of many FS institutions, the MRM suite from [EY Canada](https://www.ey.com/en_ca) provides proven model 
 documentation templates corresponding to business domains in the financial services industry.
 
+<img src='https://assets.ey.com/content/dam/ey-sites/ey-com/en_gl/generic/logos/20170526-EY-Digital-Brand.svg' width=100> 
+
 See an example of [template](templates/Credit_Adjudication.dbc) document for Credit Risk Adjudication use case. 
 Available as a DBC file, this template provides the necessary placemat through markdown comments to generate the 
 necessary documentation for Model Risk Management.
