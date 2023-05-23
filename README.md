@@ -57,7 +57,7 @@ custom needs of many FS institutions, the
 from EY provides proven model documentation templates corresponding to business domains 
 in the financial services industry.
 
-See an example of [template](templates/Credit Adjudication - MRM Model Documentation - Template.ipynb) 
+See an example of [template](templates/Credit%20Adjudication%20-%20MRM%20Model%20Documentation%20-%20Template.ipynb) 
 document for Credit Risk Adjudication use case. Available as a Ipython notebook file, hence easily
 accessible through Databricks environment, this template provides the necessary placemat through 
 markdown comments to generate the documentation required for Model Risk Management.
