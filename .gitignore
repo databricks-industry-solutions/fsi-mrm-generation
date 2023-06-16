@@ -3,3 +3,4 @@ venv
 *.iml
 dist
 .DS_Store
+__pycache__
