@@ -1,84 +1,193 @@
 # Databricks notebook source
-# *********
-# DEMO ONLY
-# *********
- 
-_ = sql("CREATE CATALOG IF NOT EXISTS fsgtm")
-_ = sql("DROP DATABASE IF EXISTS fsgtm.mrm CASCADE")
-_ = sql("CREATE DATABASE fsgtm.mrm")
-
-import pandas as pd
-
-df = pd.read_csv("data/german_credit_data_risk.csv", index_col=0)
-df = df.rename({
-  'Age' : 'AGE',
-  'Sex' : 'SEX',
-  'Job' : 'JOB',
-  'Housing': 'HOUSING',
-  'Saving accounts': 'SAVING_ACCOUNT',
-  'Checking account': 'CHECKING_ACCOUNT',
-  'Credit amount': 'CREDIT_AMOUNT',
-  'Duration': 'DURATION',
-  'Purpose': 'PURPOSE',
-  'Risk': 'RISK'
-}, axis=1)
-
-spark.createDataFrame(df).write.format('delta').saveAsTable('fsgtm.mrm.german_credit_data_risk')
+# MAGIC %md
+# MAGIC # Credit Risk Adjudication Model
+# MAGIC
+# MAGIC This notebook is a simple example of how organisations could standardize their approach to AI by defining a series of steps that any data science team ought to address prior to a model validation. Although not exhaustive, this shows that most of the questions required by IVU process could be addressed upfront (at model development phase) to reduce the friction between regulatory imposed silos, increase model validation success rate and drammatically reduce time from exploration to productionization of AI use cases. 
+# MAGIC
+# MAGIC <br>
+# MAGIC
+# MAGIC <a href="https://www.ey.com/en_ca" target="_blank">
+# MAGIC   <img src='https://assets.ey.com/content/dam/ey-sites/ey-com/en_gl/generic/logos/20170526-EY-Digital-Brand.svg' width=100> 
+# MAGIC </a>
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### External Data Sources
+# MAGIC # Executive Summary
+# MAGIC This notebook demonstrates the use of Machine Learning for credit risk adjudication model. We will be loading a publicly available dataset and evaluate multiple modelling techniques and parameter tuning using hyperopts in order to select the best approach balancing between model explainability and model accuracy.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 1 Introduction
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1.1 Model Background and Initiation
+# MAGIC The motivations behind this modeling effort is to showcase Lakehouse capabilities combined with EY expertise as it relates to model risk management. The goal is not to build the best model nor to showcase latest state of the art AI capabilities. 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1.2 Model Purpose
+# MAGIC The purpose of this document is to provide a detailed description of the new retail credit adjudication model.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1.3 Model Portfolio
+# MAGIC The MLflow Model Registry component is a centralized model store, set of APIs, and UI, to collaboratively manage the full lifecycle of an MLflow Model. It provides model lineage (which MLflow experiment and run produced the model), model versioning, stage transitions (for example from staging to production), and annotations. Used as a backbone of our model risk management solution accelerator, this becomes the de facto place to register both machine learning and non machine learning models. 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1.4 Model Risk Rating
+# MAGIC Credit Risk Model would give creditors, analysts, and portfolio managers a way of ranking borrowers based on their creditworthiness and default risk. Any issue on the model output would have financial consequences, leading to a relative `HIGH` model materiality. 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1.5 Model Log of Changes
+# MAGIC We captured all different models and previous versions using MLFlow. Model development history is available through the MLFlow registry UI / API.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1.6 Business-Driven Risk Considerations
+# MAGIC *Note: Explain the business risks that are explored and assessed during the model development process, and how they are accounted for in the final model (outputs). Describe and justify any mitigation action (plan) that helps reduce the business-driven risk.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1.7 Economic and Market Outlook
+# MAGIC *Note: Explain how the current and forward-looking overall economic conditions may impact the business line and subsequently the model outcome.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1.8 Model Development Process
+# MAGIC *Note: Describe the overall model development process, the different milestones of the process, along with the roles and responsibilities of the stakeholders involved at each of these key steps.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1.9 Economic and Market Outlook
+# MAGIC *Note: Explain how the current and forward-looking overall economic conditions may impact the business line and subsequently the model outcome.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 2 Data
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 2.1 Borrower Definition
+# MAGIC *Note: Describe the borrowers’ categories of the model portfolio/population. For instance, whether the model applies to borrowers with a certain range of exposure, within a geographical area, or with a minimum/maximum of total asset (e.g., when the model also applies to SMEs). It outlines the borrower identification process in the data bases as well.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 2.2 Data Sources
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 2.2.1 Internal Data Sources
+# MAGIC *Note: Describe the internal data sources, as well as their appropriateness with the model purpose and model population.*
+
+# COMMAND ----------
+
+# MAGIC %run ./utils/init
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 2.2.2 External Data Sources
 # MAGIC
-# MAGIC The external data contains personal information on clients with saving and/or checking accounts. Overall, 1,000 observations are included in the dataset. The following describes the different variables along with the features of the dataset.
+# MAGIC The external data contains personal information on clients with saving and/or checking accounts. Overall, 1,000 observations are included in the dataset. The following describes the different variables along with the features of the dataset. We display a few records below as well as table statistics.
 # MAGIC
 # MAGIC <br>
 # MAGIC
-# MAGIC + Age (numeric)
-# MAGIC + Sex (text: male, female)
-# MAGIC + Job (numeric: 0 - unskilled and non-resident, 1 - unskilled and resident, 2 - skilled, 3 - highly skilled)
-# MAGIC + Housing (text: own, rent, or free)
-# MAGIC + Saving accounts (text - little, moderate, quite rich, rich)
-# MAGIC + Checking account (numeric, in DM - Deutsch Mark)
-# MAGIC + Credit amount (numeric, in DM)
-# MAGIC + Duration (numeric, in month)
-# MAGIC + Purpose (text: car, furniture/equipment, radio/TV, domestic appliances, repairs, education, business, vacation/others)
+# MAGIC + `AGE` (numeric)
+# MAGIC + `SEX` (text: male, female)
+# MAGIC + `JOB` (numeric: 0 - unskilled and non-resident, 1 - unskilled and resident, 2 - skilled, 3 - highly skilled)
+# MAGIC + `HOUSING` (text: own, rent, or free)
+# MAGIC + `SAVING_ACCOUNT` (text - little, moderate, quite rich, rich)
+# MAGIC + `CHECKING_ACCOUNT` (numeric, in DM - Deutsch Mark)
+# MAGIC + `CREDIT_AMOUNT` (numeric, in DM)
+# MAGIC + `DURATION` (numeric, in month)
+# MAGIC + `PURPOSE` (text: car, furniture/equipment, radio/TV, domestic appliances, repairs, education, business, vacation/others)
 
 # COMMAND ----------
 
 df_credit = spark.read.table('fsgtm.mrm.german_credit_data_risk').toPandas()
 df_credit.loc[df_credit['RISK'] =='good', 'RISK_EN'] = 0 
 df_credit.loc[df_credit['RISK'] =='bad', 'RISK_EN'] = 1 
-displayHTML(df_credit.head().to_html())
+df_credit.head().drop('RISK_EN', axis=1)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Target Variable Definition
-# MAGIC
-# MAGIC The model is designed to predict the likelihood of a loan defaulting. The target variable (good/bad) is defined using the information in the extracted dataset. The target variable defines the loans status as ‘good’ or ‘bad’. A ‘good’ status means a good credit performance, i.e., the client did not default during the observation period, whereas a ‘bad’ status means a default occurred during the observation period.
-# MAGIC In the modeling code, ‘good’ is identified as ‘0’, and ‘bad’ is identified as ‘1’. The following figures depict the target variable distribution (percentage of good/bad), according to the different variables.
-# MAGIC
+# MAGIC ## 2.3 Data Historical Coverage and Suitability
+# MAGIC *Note: Describe the data extraction process, along with the period spanned by the data and the statistics on the extracted observations. The section should not only evidence that the extracted data reflects the business practices and experiences, but is also suitable for the model purpose, modeling methodology and modeling assumptions.*
 
 # COMMAND ----------
 
-import seaborn as sns
-import matplotlib.pyplot as plt
+# MAGIC %md
+# MAGIC ## 2.4 Modeling Timeframes
 
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 2.4.1 Timeframe Concepts
+# MAGIC *Note: Explain the different concepts of the modeling timeframes used for the model development, specifically the observation period, the lag period, along with the performance period.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 2.4.2 Determination of the Performance and Lag Periods
+# MAGIC *Note: Describe the determination process of the lag and performance periods, including the judgemental considerations that were used. Provide a justification of the selections and their consistency with the model product and the observed borrowers’ experience. Explain the different concepts of the modeling timeframes used for the model development, specifically the observation period, the lag period, along with the performance period.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 2.4.3 Modeling Timeframes
+# MAGIC *Note: Describe the different modeling timeframes that were finally selected (i.e., the corresponding periods to the concepts explained in Section 2.4.1) for the model development and validation.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 2.5 Target Variable Definition
+# MAGIC
+# MAGIC The model is designed to predict the likelihood of a loan defaulting. The target variable `RISK` (good/bad) is defined using the information in the extracted dataset. The target variable defines the loans status as ‘good’ or ‘bad’. A ‘good’ status means a good credit performance, i.e., the client did not default during the observation period, whereas a ‘bad’ status means a default occurred during the observation period. In the modeling code, ‘good’ is identified as ‘0’, and ‘bad’ is identified as ‘1’ and encoded as our `RISK_EN` column. The following figures depict the target variable distribution (percentage of good/bad), according to the different variables.
+
+# COMMAND ----------
+
+# using matplotlib visualisations
 fig, ax = plt.subplots(figsize=(8,5))
 
+# use seaborn for visualization
 sns.countplot(ax=ax, x=df_credit["RISK"], palette=["steelblue", "coral"], alpha=0.7)
 
+# add labels
 plt.xlabel('Risk variable')
 plt.ylabel('Count')
 plt.title('Target variable distribution')
+
+# display graph
 plt.show()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Eligible Population
-# MAGIC
+# MAGIC ## 2.6 Modeling Populations
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 2.6.1 Eligible Population
 # MAGIC The following table provides descriptive statistics on the eligible population for the model development, which includes 1,000 observations, in total. Descriptive statistics apply to the overall population, without any data treatment such as exclusion or sampling. ‘NaN’ mostly appears when trying to compute statistics on categorical variables; hence, they may be ignored.
 
 # COMMAND ----------
@@ -88,8 +197,7 @@ displayHTML(df_credit.describe(include='all').to_html())
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Good-Bad Observations
-# MAGIC
+# MAGIC ### 2.6.2 Good-Bad Observations
 # MAGIC The following provides statistics on the ‘good’ and ‘bad’ observations. Overall, 700 ‘good’ and 300 ‘bad’ observations are found in the dataset. Histograms of ‘good’ and ‘bad’ observations are plotted below. 
 
 # COMMAND ----------
@@ -105,21 +213,40 @@ plt.hist(df_credit.loc[df_credit['RISK'] == 'good', 'AGE'], bins=25, alpha=0.25,
 sns.kdeplot(df_credit.loc[df_credit['RISK'] == 'bad', 'AGE'], label = 'bad credit', color='coral')
 plt.hist(df_credit.loc[df_credit['RISK'] == 'bad', 'AGE'], bins=25, alpha=0.25, color='coral', density=True)
 
+# add labels
 plt.legend()
 plt.xlabel('Customer Age')
 plt.ylabel('Density')
 plt.title('Age distribution')
 
+# display graph
+plt.show()
+
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Sampling Methodology
-# MAGIC
-# MAGIC Two different datasets, training and validation, were created for the modeling purpose. More specifically, a stratified random sampling methodology was used to sample the original dataset: About 80% was used to train the model, and the remaining 20% was considered for the model performance assessment. The tables below present descriptive statistics on the datasets.
+# MAGIC ### 2.6.3 Indeterminate Observations
+# MAGIC *Note: Describe and provide statistics on observations that cannot be classified as good or bad observations.*
 
 # COMMAND ----------
 
-from sklearn.model_selection import train_test_split
+# MAGIC %md
+# MAGIC ### 2.6.4 Statistically Inferred Performance Data
+# MAGIC *Note: Describe the observations whose performance could not be observed (e.g.,indeterminate observations), the reject inference technique used to infer the performance. The reason supporting the selected technique, along with the considered population should be described as well.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 2.7 Data Exclusions and Treatment
+# MAGIC *Note: Describe exclusions and any treatments (e.g., outlier and missing value treatment, and application of floors and caps) applied to the data, along with the supporting justification.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 2.8 Sampling Methodology
+# MAGIC Two different datasets, training and validation, were created for the modeling purpose. More specifically, a stratified random sampling methodology was used to sample the original dataset: About 80% was used to train the model, and the remaining 20% was considered for the model performance assessment. The tables below present descriptive statistics on the datasets.
+
+# COMMAND ----------
 
 def sampling(df, target, sample_rate=None, sample_seeds=None, sample_tech=None):
     if sample_rate:
@@ -151,18 +278,46 @@ df_sample = sampling(
   sample_tech='Stratified'
 )
 
-displayHTML(df_sample.describe().to_html())
+df_sample.describe()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Variable Reduction
-# MAGIC
-# MAGIC Preliminary analyses were conducted to support the variable selection process. More precisely, the variables were plotted according to different bin categories to assess their probability density. Moreover, weights of evidence (WOEs) which measure the relative risk of each bin within each variable were also calculated and evaluated as part of the variable selection process. The results of the probability density and WOEs for each variable are showed below. 
+# MAGIC ## 2.9 Modeling Data Assessment
+# MAGIC *Note: Describe the final dataset that will be used for the model development. Describe the data quality, using statistics and graphs, describe any data limitations and their potential impact on the model
+# MAGIC output.*
 
 # COMMAND ----------
 
-import numpy as np
+# MAGIC %md
+# MAGIC # 3 Model Development
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 3.1 Methodology Selection
+# MAGIC *Note: Describe the modeling methodology selection process. More specifically, first present and compare the different alternatives through the literature and industry practice review, and then explain
+# MAGIC the rationale behind the selected approach. In addition, outline the mathematical definitions and equations, along with the assumptions and limitations of the selected modeling methodology.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 3.2 Model Segmentation
+# MAGIC *Note: Describe the model segmentation process, including the judgemental considerations, the statistical analyses, and the supporting rationale for the selected segments.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 3.3 Model Variable Selection
+# MAGIC *Note: Describe the variable selection process from the initial list until the selected variables. The statistical analyses with their results and the business considerations should be described in the corresponding sub-sections below. Only relevant and applicable sub-sections should documented. Additional analyses or tests may be added.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 3.3.1 Variable Reduction
+# MAGIC Preliminary analyses were conducted to support the variable selection process. More precisely, the variables were plotted according to different bin categories to assess their probability density. Moreover, weights of evidence (WOEs) which measure the relative risk of each bin within each variable were also calculated and evaluated as part of the variable selection process. The results of the probability density and WOEs for each variable are showed below. 
+
+# COMMAND ----------
 
 def describe_data_g_targ(dat_df, target_var, logbase=np.e):
     num=dat_df.shape[0]
@@ -175,17 +330,6 @@ def describe_data_g_targ(dat_df, target_var, logbase=np.e):
     base_log_odds = np.log(base_odds)*lbm
     nll_null = -(dat_df[target_var] * np.log(base_rate)*lbm + (1-dat_df[target_var])*np.log(1-base_rate)*lbm).sum()
     logloss_null = nll_null/num
-    
-    print("********************************")
-    print("Number of records:", num)
-    print("Target count:", n_targ)
-    print("Target rate:", base_rate)
-    print("Target odds:", base_odds)
-    print("Target log odds:", base_log_odds)
-    print("Null model negative log-likelihood:", nll_null)
-    print("Null model LogLoss:", logloss_null)
-    print("********************************")
-
     return {'num':num, 'n_targ':n_targ, 'base_rate':base_rate, 'base_odds':base_odds, 
             'base_log_odds':base_log_odds, 'nll_null':nll_null, 'logloss_null':logloss_null}
 
@@ -193,7 +337,11 @@ def describe_data_g_targ(dat_df, target_var, logbase=np.e):
 
 describe_data_records = describe_data_g_targ(df_credit,'RISK_EN')
 describe_data_df = pd.DataFrame.from_dict(describe_data_records, orient='index', columns=['value'])
-displayHTML(describe_data_df.to_html())
+describe_data_df
+
+# COMMAND ----------
+
+# MAGIC %run ./utils/woe
 
 # COMMAND ----------
 
@@ -219,21 +367,15 @@ def woe_discrete(df, cat_variabe_name, y_df):
 
  for i in df_credit.columns:
   if i not in ['RISK', 'RISK_EN']:
-    display(woe_discrete(df_credit[[i]],i,df_credit['RISK_EN']))
-    # univariate_sc_plot(df_credit,i,'Risk_en', n_cuts=3)
+    univariate_sc_plot(df_credit,i,'RISK_EN', n_cuts=3)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Final Variable Reduction
-# MAGIC
+# MAGIC ### 3.3.2 Final Variable Reduction
 # MAGIC For the final variable reduction, intervals were created for some continuous variables such as the age, whereas dummies were created for categorical variables such the sex, housing, etc. Results of the analyses are presented below.
 
 # COMMAND ----------
-
-from sklearn.feature_selection import SelectKBest
-from sklearn.feature_selection import f_classif
-from sklearn.model_selection import train_test_split
 
 interval = (18, 25, 35, 60, 120)
 
@@ -271,15 +413,15 @@ train_data_prepared.describe()
 X = train_data_prepared[[i for i in train_data_prepared.columns if i not in ['RISK','RISK_EN']]]
 y = df_credit['RISK_EN']
 
+# split dataset between training and testing
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.25, random_state=42)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Model Selection
+# MAGIC ## 3.4 Model Estimation
 # MAGIC
 # MAGIC For the model selection and estimation, a 10 fold cross-validation procedure is used to compare and select among different alternative models. The following models were trained using hyperopt for hyper parameter tuning.
-# MAGIC
 # MAGIC <br>
 # MAGIC
 # MAGIC + K Neighbors
@@ -289,21 +431,13 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.25, rand
 
 # COMMAND ----------
 
-# we broadcast our dataset to be used by our executors
+# broadcast our dataset to be used by our executors
 X_train_broadcast = sc.broadcast(X_train)
 X_test_broadcast = sc.broadcast(X_test)
 y_train_broadcast = sc.broadcast(y_train)
 y_test_broadcast = sc.broadcast(y_test)
 
 # COMMAND ----------
-
-from hyperopt import hp, fmin, tpe, SparkTrials, STATUS_OK, space_eval
-from sklearn.pipeline import Pipeline
-from sklearn.metrics import average_precision_score
-from sklearn.model_selection import cross_val_predict, cross_val_score, KFold
-
-from sklearn.neighbors import KNeighborsClassifier
-from xgboost import XGBClassifier
 
 # we delegate hyperparameter tuning and model selection to hyperopt, distributing that process
 # across multiple spark executors
@@ -341,11 +475,6 @@ def objective(args):
 
 # COMMAND ----------
 
-import mlflow
-from mlflow.models import infer_signature
-import warnings
-warnings.filterwarnings("ignore")
-
 max_evals=50
 
 with mlflow.start_run(run_name='credit adjudication select', nested=True):
@@ -372,11 +501,18 @@ displayHTML("<p>Best model is [{}]</p>".format(type(best_model).__name__))
 
 # COMMAND ----------
 
-description = """
-A 10 fold cross-validation procedure was used to select the best model and hyperparameters across multiple techniques.
-Our model selection included XGBoost and K nearest neighbors.
+# unpersist our datasets now that we trained best model
+X_train_broadcast.unpersist(blocking = False)
+X_test_broadcast.unpersist(blocking = False)
+y_train_broadcast.unpersist(blocking = False)
+y_test_broadcast.unpersist(blocking = False)
+
+# COMMAND ----------
+
+description = """A 10 fold cross-validation procedure was used to select the best model and hyperparameters across multiple techniques.
+Our model selection included XGBoost and K nearest neighbors and selected {} as best fit.
 This run was evaluated as our best run that maximizes `cross_val_score`.
-"""
+""".format(type(best_model).__name__)
 
 with mlflow.start_run(run_name='credit adjudication', description=description) as run:
 
@@ -398,15 +534,71 @@ with mlflow.start_run(run_name='credit adjudication', description=description) a
 
 # COMMAND ----------
 
+# ensure random numbers can be reproduced
+seed=42
+
+# define our 10 fold cross validation for metrics
+kfold = KFold(n_splits=10, random_state=seed, shuffle=True)
+
+# COMMAND ----------
+
+def get_confusion_matrix(model):
+    y_pred = cross_val_predict(model, X_train, y_train, cv=kfold)
+    group_names = ['True Neg', 'False Pos', 'False Neg', 'True Pos']
+    cf_matrix = confusion_matrix(y_train, y_pred)
+    group_counts = ['{0:0.0f}'.format(value) for value in cf_matrix.flatten()]
+    group_percentages = ['{0:.2%}'.format(value) for value in cf_matrix.flatten()/np.sum(cf_matrix)]
+    labels = [f'{v1}\n{v2}\n{v3}' for v1, v2, v3 in zip(group_names,group_counts,group_percentages)]
+    labels = np.asarray(labels).reshape(2,2)
+    plt.figure(figsize=(8, 5))
+    sns.heatmap(cf_matrix, annot=labels, fmt='', cmap='Blues')
+    plt.title('Confusion matrix')
+    plt.tight_layout()
+    plt.savefig('/tmp/mrmgen_matrix.png')
+    plt.show()
+
+# COMMAND ----------
+
+# create MLFlow client to update our experiment with additional metrics / graphs
+client = mlflow.tracking.MlflowClient()
+
+# plot confusion matrix for best model
+get_confusion_matrix(model)
+
+# equally store the same alongside MLFlow experiment for audit purpose
+client.log_artifact(run_id, '/tmp/mrmgen_matrix.png', 'images')
+
+# COMMAND ----------
+
 # MAGIC %md
-# MAGIC #### Accuracy Ratio Test
+# MAGIC ## 3.5 Model Scaling
+# MAGIC *Note: Describe the model scaling process. More specifically, cover the selection of the scaling equations and parameters, as well as the expert judgements that were considered. Display and interpret the model final results.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 4 Model Performance Assessment
+# MAGIC *Note: Thoroughly assess the model performance in this section. Each sub-section is designed to cover particular dimension that is assessed, outline the analysis or statistical test that is performed and
+# MAGIC provide the results interpretation. Keep only relevant and applicable sub-sections. Add additional analyses or tests.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4.1 Output Analysis
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4.2 Discriminatory Power Testing
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 4.2.1 Accuracy Ratio Test
 # MAGIC
 # MAGIC To better assess the models’ performance, different accuracy tests including, the accuracy ratio, the precision test, the recall test and the F1 test were performed. Results of these tests are showed in the following tables.
 
 # COMMAND ----------
-
-seed=42
-kfold = KFold(n_splits=10, random_state=seed, shuffle=True)
 
 def get_accuracy_ratio(model):
     cv_accuracy = cross_val_score(model, X_train, y_train, cv=kfold, scoring='accuracy').mean()
@@ -422,25 +614,19 @@ def get_accuracy_ratio(model):
 
 # COMMAND ----------
 
-client = mlflow.tracking.MlflowClient()
 metrics = get_accuracy_ratio(model)
 for metric in metrics.keys():
+  # log metrics on MLFlow experiment
   client.log_metric(run_id, metric, metrics[metric])
-
-metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['value'])
-displayHTML(metrics_df.to_html())
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Kolmogorov-Smirnov Test
+# MAGIC ### 4.2.2 Kolmogorov-Smirnov Test
 # MAGIC
 # MAGIC In addition to the aforementioned performance tests, the KS test was also performed, and results are the following.
 
 # COMMAND ----------
-
-from scipy.stats import kstest
-from scipy.stats import ks_2samp
 
 def get_kolmogorov():
   data1 = X_train.iloc[:,0]
@@ -455,55 +641,16 @@ def get_kolmogorov():
 
 metrics = get_kolmogorov()
 for metric in metrics.keys():
+  # log metrics on MLFlow experiment
   client.log_metric(run_id, metric, metrics[metric])
 
-metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['value'])
-displayHTML(metrics_df.to_html())
-
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Confusion matrix
-
-# COMMAND ----------
-
-from sklearn.metrics import confusion_matrix
-
-def get_confusion_matrix(model):
-    y_pred = cross_val_predict(model, X_train, y_train, cv=kfold)
-    group_names = ['True Neg', 'False Pos', 'False Neg', 'True Pos']
-    cf_matrix = confusion_matrix(y_train, y_pred)
-    group_counts = ['{0:0.0f}'.format(value) for value in cf_matrix.flatten()]
-    group_percentages = ['{0:.2%}'.format(value) for value in cf_matrix.flatten()/np.sum(cf_matrix)]
-    labels = [f'{v1}\n{v2}\n{v3}' for v1, v2, v3 in zip(group_names,group_counts,group_percentages)]
-    labels = np.asarray(labels).reshape(2,2)
-    plt.figure(figsize=(8, 5))
-    sns.heatmap(cf_matrix, annot=labels, fmt='', cmap='Blues')
-    plt.title('Confusion matrix')
-    plt.tight_layout()
-    plt.savefig('matrix.png')
-    plt.show()
-
-# COMMAND ----------
-
-get_confusion_matrix(model)
-client.log_artifact(run_id, 'matrix.png', 'images')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Sensitivity Analysis
-# MAGIC
+# MAGIC ## 4.3 Sensitivity Analysis
 # MAGIC A sensitivity analysis was conducted to identify the key variables that mostly impact the model results. For instance, a 5% increase in the following variables, age, credit amount, duration, purpose (if domestic appliances and furniture/equipment) was performed, and the impact reasonableness was assessed. Sensitivity analyses results are showed below.
 
 # COMMAND ----------
-
-from sklearn.datasets import make_regression
-import pandas as pd
-from xgboost import XGBRegressor
-import matplotlib.pyplot as plt
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 class Simulate:
     def __init__(self, obs, var):
@@ -545,37 +692,94 @@ def sensitivity(d, **kwargs):
     sns.despine(offset=10, trim=True)
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig('sensitivity.png')
+    plt.savefig('/tmp/mrmgen_sensitivity.png')
     plt.show()
 
 # COMMAND ----------
-
-from xgboost import XGBRegressor
 
 VAR_OPTIMIZE = [i for i in X_train.columns[:5]]
 PERC = 5
 ROW = X_train.iloc[[29]]
 
+# disable mlflow autologging, this is not a model but a validation
 mlflow.autolog(disable=True)
 model = XGBRegressor()
 model.fit(X_train, y_train)
+
 S = Simulate(obs=ROW, var=VAR_OPTIMIZE)
 d = S.simulate_increase(model=model, percentage=PERC)
+
+# COMMAND ----------
+
+# display graph sensitivity here for the purpose of this documentation
 sensitivity(d, title=f'Impact of a {PERC}% increase in target value')
-client.log_artifact(run_id, 'sensitivity.png', 'images')
+
+# equally store the same alongside MLFlow experiment for audit purpose
+client.log_artifact(run_id, '/tmp/mrmgen_sensitivity.png', 'images')
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Register model
+# MAGIC ## 4.4 Population Stability Analysis
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4.5 Benchmarking
+# MAGIC For the benchmarking, please refer to the section of the model estimation results, where different models were trained, and the results were compared using confusion matrices. 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 5 Model Assumptions and Limitations
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 5.1 Model Assumptions
+# MAGIC *Note: Describe the key assumptions made throughout the model development process and provide evidence to support their reasonableness and soundness.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 5.2 Model Limitations
+# MAGIC *Note: Describe the key model limitations, their potential impact on the model, as well as the corresponding mitigation action plan(s) to reduce the model risk.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 6 Model Ongoing Monitoring
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 6.1 Ongoing Performance Assessment
+# MAGIC *Note: Describe the ongoing model performance monitoring plan. Cover the statistical tests (including e.g., the frequency and acceptance thresholds) that will be performed on an ongoing basis to
+# MAGIC ensure the model is still performing adequately.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 6.2 Documentation Review
+# MAGIC *Note: Describe the conditions or types of model changes that trigger the model documentation review, as well as the key components that need to be reviewed.*
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 7 References
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 8 Model registry
 # MAGIC Finally, we will log all evidence required to trigger an independant review of our modeling approach. We show how to do so programmatically, though this process could be done manually from the MLFlow UI.
 
 # COMMAND ----------
 
 model_uri = "runs:/{}/model".format(run_id)
-model_name = "credit_adjudication"
-model_version_description = """{} was selected as the best approach over {} different combinations of models and hyperparameters.
-Different techniques included K Nearest neighbors and XGBoost.""".format(type(best_model).__name__, max_evals)
+model_version_description = """This version of credit adjudication model was built for the purpose of DAIS summit demo. 
+Model was co-developped between EY and Databricks, finding {} as best fit model trained against {} different experiments.
+All experiments are tracked and available on MLFlow experiment tracker.""".format(type(best_model).__name__, max_evals)
 
 # Register model
 result = mlflow.register_model(model_uri, model_name)
@@ -585,17 +789,13 @@ model_version = result.version
 client.update_model_version(name=model_name, version=model_version, description=model_version_description,)
 
 # Update model tags
-client.set_model_version_tag(name=model_name, version=model_version, key='Model name', value=type(best_model).__name__)
+client.set_model_version_tag(name=model_name, version=model_version, key='Model type', value=type(best_model).__name__)
 client.set_model_version_tag(name=model_name, version=model_version, key='Model selection', value='HYPEROPT')
 client.set_model_version_tag(name=model_name, version=model_version, key='Model complexity', value='MEDIUM')
 client.set_model_version_tag(name=model_name, version=model_version, key='Model explainability', value='MEDIUM')
 
 # COMMAND ----------
 
-# *********
-# DEMO ONLY
-# *********
- 
 model_registered_description="""Co-developped with EY, This model is a simple example of how organisations could standardize their approach to AI by defining a series of steps that any data science team ought to address prior to a model validation. Although not exhaustive, this shows that most of the questions required by IVU process for a given use case (Credit adjudication) could be addressed upfront to reduce the friction between regulatory imposed silos, increase model validation success rate and drammatically reduce time from exploration to productionization of AI use cases."""
 
 # Update parent model description (done for the purpose of demo, should have been set upfront)
@@ -607,10 +807,6 @@ client.set_registered_model_tag(name=model_name, key='Model review', value='REQU
 
 # COMMAND ----------
 
-# *********
-# DEMO ONLY
-# *********
-
 # Transition previous iterations to archive (for the purpose of demo)
 for model in client.search_model_versions("name='{}'".format(model_name)):
   if model.current_stage == 'Production':
@@ -618,5 +814,10 @@ for model in client.search_model_versions("name='{}'".format(model_name)):
 
 # COMMAND ----------
 
-# Transition model to next stage
-client.transition_model_version_stage(name=model_name, version=model_version, stage="Production")
+# MAGIC %md
+# MAGIC <div style="text-align: center; margin-top: 30px;">
+# MAGIC     <img src='https://assets.ey.com/content/dam/ey-sites/ey-com/en_gl/generic/logos/20170526-EY-Digital-Brand.svg' alt="Logo" height="100px">
+# MAGIC     <br>
+# MAGIC     <br>
+# MAGIC     <em>Disclaimer: The views and opinions expressed in this blog are those of the authors and do not necessarily reflect the policy or position of EY.</em>
+# MAGIC </div>
