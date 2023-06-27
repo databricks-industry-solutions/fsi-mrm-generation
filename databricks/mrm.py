@@ -572,8 +572,8 @@ class ModelRiskApi:
         being the use of e.g. LateX library, we decided to leverage HTML as main format as it supports markdown
         information, HTML that we can "beautify" using boostrap CSS and convert to PDF document.
         :param model_name: the name of the model to fetch from databricks
-        :param output_file: the version of the model to fetch from databricks (optional, default is latest)
-        :param model_version: the output file to write PDF document
+        :param output_file:  the output file to write PDF document 
+        :param model_version: the version of the model to fetch from databricks (optional, default is latest)
         :param verbatim_file: giving user the opportunity to supply their own verbatim files instead of default
         :return:
         """
