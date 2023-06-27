@@ -442,10 +442,25 @@ class ModelRiskApi:
         """
         logger.info(f'Retrieving model [{model_name}] from mlflow API')
         url = f'{self.api_registry}?name={model_name}'
-        response = json.loads(requests.get(url=url, headers=self.headers).text)
-        if 'error_code' in response:
+        
+        try:
+            response = requests.get(url=url, headers=self.headers)
+            response.raise_for_status()  # this will raise an error if the request failed
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request to {url} failed: {e}")
+            raise
+
+        try:
+            data = response.json()  # this will raise an error if the response isn't valid JSON
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to decode JSON from response: {e}")
+            raise
+
+        if 'error_code' in data:
+            logger.error(f"Could not find model {model_name} on ml registry")
             raise Exception(f"Could not find model {model_name} on ml registry")
-        return self.__process_model_parent(response, model_name)
+
+        return self.__process_model_parent(data, model_name)
 
     def __get_model_submission(self, model_name, model_version, model_parent):
         """
