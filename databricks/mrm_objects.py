@@ -1,6 +1,7 @@
 import abc
 import base64
 import json
+import re
 from urllib.parse import unquote
 
 from graphviz import Digraph
@@ -324,6 +325,18 @@ class Notebook(MRMInterface):
                                 html_body.append('</div>')
                                 html_body.append('<div class="container jumbotron section-markdown">')
                                 html_body.extend(image_to_html(data_entry))
+                                html_body.append('</div>')
+                            elif data_entry['type'] == 'htmlSandbox':
+                                html_content = data_entry['data']
+                                html_body.append('<div>')
+                                html_body.append(f'<small class="text-muted">output cell #{i}</small>')
+                                html_body.append('</div>')
+                                html_body.append('<div class="container jumbotron section-markdown">')
+                                html_content = re.sub('class="dataframe"', 'class="table table-sm table-striped"',
+                                                      html_content)
+                                html_content = re.sub('style="text-align: right;">', '>', html_content)
+                                html_content = re.sub('<style.*</style>', '', html_content)
+                                html_body.append(html_content)
                                 html_body.append('</div>')
         html_body.append('</div>')
         return html_body

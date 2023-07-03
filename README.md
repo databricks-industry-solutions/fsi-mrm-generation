@@ -46,6 +46,20 @@ Make sure to have both `wkhtmltopdf` and `graphviz` binary installed
 sudo apt-get install -y graphviz wkhtmltopdf
 ```
 
+### Command line
+
+Should you need to run the same from a command line utility, please refer to `databricks.py`.
+
+```shell
+pip install -r requirements.txt
+python databricks.py \
+    --db-workspace my-workspace-url \
+    --db-token my-workspace-token \
+    --model-name my-model-name \
+    --model-version my-model-version \
+    --output my-model-output.pdf
+```
+
 ## Template documentation
 
 This utility library provides a technical foundation and framework to automatically 
