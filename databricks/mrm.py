@@ -91,7 +91,7 @@ class ModelRiskApi:
         mlflow_data = run_tags.get('sparkDatasourceInfo') or None
         if mlflow_data:
             mlflow_data_records = []
-            for source_record in mlflow_data.split(';'):
+            for source_record in mlflow_data.split('\n'):
                 source_record_dict = {}
                 source_record_kv_pairs = source_record.split(',')
                 for source_record_kv in source_record_kv_pairs:
@@ -896,4 +896,5 @@ class ModelRiskApi:
         # GENERATE PDF OUTPUT
         # We pimp our HTML with additional CSS and HTML template and generate PDF accordingly
         ##########################################################################################
+
         generate_pdf(html, output_file)
