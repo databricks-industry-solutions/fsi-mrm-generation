@@ -122,7 +122,12 @@
 
 # COMMAND ----------
 
-df_credit = spark.read.table('fsgtm.mrm.german_credit_data_risk').toPandas()
+# When you train a model on a table in Unity Catalog, you can track the lineage of the model to the upstream dataset(s) it was trained and evaluated on. For that purpose, we load our data as a mlflow dataset.
+mlflow_dataset = mlflow.data.load_delta(table_name=f'{catalog}.{schema}.{table_name}')
+
+# COMMAND ----------
+
+df_credit = mlflow_dataset.df.toPandas()
 df_credit.loc[df_credit['RISK'] =='good', 'RISK_EN'] = 0 
 df_credit.loc[df_credit['RISK'] =='bad', 'RISK_EN'] = 1 
 df_credit.head().drop('RISK_EN', axis=1)
@@ -192,7 +197,7 @@ plt.show()
 
 # COMMAND ----------
 
-displayHTML(df_credit.describe(include='all').to_html())
+df_credit.describe(include='all')
 
 # COMMAND ----------
 
@@ -202,6 +207,7 @@ displayHTML(df_credit.describe(include='all').to_html())
 
 # COMMAND ----------
 
+# DBTITLE 1,Good and Bad Credit Age Distribution
 # using matplotlib visualisations
 plt.figure(figsize = (12, 6))
 
@@ -401,7 +407,12 @@ del df_credit["HOUSING"]
 del df_credit["AGE_CAT"]
 del df_credit["RISK"]
 
-feature_red = SelectKBest(f_classif, k=15).fit(df_credit[[i for i in df_credit.columns if i not in ['RISK','RISK_EN']]],df_credit['RISK_EN'])
+feature_red = SelectKBest(f_classif, k=15) \
+  .fit(
+    df_credit[[i for i in df_credit.columns if i not in ['RISK','RISK_EN']]], 
+    df_credit['RISK_EN']
+  )
+
 X_new = feature_red.transform(df_credit[[i for i in df_credit.columns if i not in ['RISK','RISK_EN']]])
 
 # COMMAND ----------
@@ -475,6 +486,7 @@ def objective(args):
 
 # COMMAND ----------
 
+# DBTITLE 1,Credit Risk Model Optimization
 max_evals=50
 
 with mlflow.start_run(run_name='credit adjudication select', nested=True):
@@ -509,6 +521,7 @@ y_test_broadcast.unpersist(blocking = False)
 
 # COMMAND ----------
 
+# DBTITLE 1,Credit Model Selection Tracker
 description = """A 10 fold cross-validation procedure was used to select the best model and hyperparameters across multiple techniques.
 Our model selection included XGBoost and K nearest neighbors and selected {} as best fit.
 This run was evaluated as our best run that maximizes `cross_val_score`.
@@ -531,6 +544,10 @@ with mlflow.start_run(run_name='credit adjudication', description=description) a
   signature = infer_signature(X_test, y_test)
   model = best_model.fit(X_train, y_train)
   mlflow.sklearn.log_model(model, 'model', signature=signature)
+
+  # Log dataset used for lineage
+  # See https://mlflow.org/docs/latest/python_api/mlflow.html?highlight=log_input#mlflow.log_input
+  mlflow.log_input(mlflow_dataset, context='training')
 
 # COMMAND ----------
 
@@ -776,41 +793,43 @@ client.log_artifact(run_id, '/tmp/mrmgen_sensitivity.png', 'images')
 
 # COMMAND ----------
 
+model_name = 'credit_adjudication'
+model_fqdn = f'{catalog}.{schema}.{model_name}'
+
+# COMMAND ----------
+
+# DBTITLE 1,Credit Model Registration Workflow
 model_uri = "runs:/{}/model".format(run_id)
-model_version_description = """This version of credit adjudication model was built for the purpose of DAIS summit demo. 
-Model was co-developped between EY and Databricks, finding {} as best fit model trained against {} different experiments.
+model_version_description = """This version of credit adjudication model was built for the purpose of unity catalog demo. Model was co-developped between EY and Databricks, finding {} as best fit model trained against {} different experiments.
 All experiments are tracked and available on MLFlow experiment tracker.""".format(type(best_model).__name__, max_evals)
 
 # Register model
-result = mlflow.register_model(model_uri, model_name)
+result = mlflow.register_model(model_uri, model_fqdn)
 model_version = result.version
 
 # Update model description
-client.update_model_version(name=model_name, version=model_version, description=model_version_description,)
+client.update_model_version(name=model_fqdn, version=model_version, description=model_version_description)
 
 # Update model tags
-client.set_model_version_tag(name=model_name, version=model_version, key='Model type', value=type(best_model).__name__)
-client.set_model_version_tag(name=model_name, version=model_version, key='Model selection', value='HYPEROPT')
-client.set_model_version_tag(name=model_name, version=model_version, key='Model complexity', value='MEDIUM')
-client.set_model_version_tag(name=model_name, version=model_version, key='Model explainability', value='MEDIUM')
+client.set_model_version_tag(name=model_fqdn, version=model_version, key='model_type', value=type(best_model).__name__)
+client.set_model_version_tag(name=model_fqdn, version=model_version, key='model_selection', value='HYPEROPT')
+client.set_model_version_tag(name=model_fqdn, version=model_version, key='model_complexity', value='MEDIUM')
+client.set_model_version_tag(name=model_fqdn, version=model_version, key='model_explainability', value='MEDIUM')
 
 # COMMAND ----------
 
 model_registered_description="""Co-developped with EY, This model is a simple example of how organisations could standardize their approach to AI by defining a series of steps that any data science team ought to address prior to a model validation. Although not exhaustive, this shows that most of the questions required by IVU process for a given use case (Credit adjudication) could be addressed upfront to reduce the friction between regulatory imposed silos, increase model validation success rate and drammatically reduce time from exploration to productionization of AI use cases."""
 
 # Update parent model description (done for the purpose of demo, should have been set upfront)
-client.update_registered_model(name=model_name, description=model_registered_description)
+client.update_registered_model(name=model_fqdn, description=model_registered_description)
 
 # Update parent model tags
-client.set_registered_model_tag(name=model_name, key='Model materiality', value='HIGH')
-client.set_registered_model_tag(name=model_name, key='Model review', value='REQUESTED')
+client.set_registered_model_tag(name=model_fqdn, key='model_materiality', value='HIGH')
+client.set_registered_model_tag(name=model_fqdn, key='model_review', value='REQUESTED')
 
 # COMMAND ----------
 
-# Transition previous iterations to archive (for the purpose of demo)
-for model in client.search_model_versions("name='{}'".format(model_name)):
-  if model.current_stage == 'Production':
-    client.transition_model_version_stage(name=model_name, version=int(model.version), stage="Archived")
+client.set_registered_model_alias(name=model_fqdn, version=model_version, alias='production')
 
 # COMMAND ----------
 
