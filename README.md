@@ -37,7 +37,7 @@ mrm.generate_doc(
 )
 ```
 
-See example [output](mrm_output.pdf) for a given test model done using an existing solution 
+See example [output](templates%2FCredit%20Adjudication%20-%20Output.pdf) for a given test model done using an existing solution 
 [accelerator](https://github.com/databricks-industry-solutions/value-at-risk). 
 
 Make sure to have both `wkhtmltopdf` and `graphviz` binary installed
@@ -88,4 +88,6 @@ set forth below.
 | mdtex2html                       | Markdown parser     | MIT     | https://pypi.org/project/mdtex2html/        |
 | graphviz                         | Graph visualization | MIT     | https://pypi.org/project/graphviz/         |
 | pdfkit                           | html to pdf         | MIT     | https://pypi.org/project/pdfkit/           |
+
+
 

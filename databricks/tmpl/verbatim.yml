@@ -11,6 +11,12 @@ mlflow_model:
         to assess the materiality of this model and may trigger different review processes and compliance requirements 
         accordingly."
 
+mlflow_model_versions:
+  header: "Model history"
+  error: "Could not find version attached to that model. 
+      Ensure model name is correct and version controlled on unity catalog."
+  info: "This section reports all previous model versions, the name of the submitter and date of registration. "
+
 mlflow_model_version:
   header: "Model submission request"
   error: "Could not find any description attached to the model version. 
