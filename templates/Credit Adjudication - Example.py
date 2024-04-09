@@ -13,88 +13,88 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Executive Summary
+# MAGIC ## Executive Summary
 # MAGIC This notebook demonstrates the use of Machine Learning for credit risk adjudication model. We will be loading a publicly available dataset and evaluate multiple modelling techniques and parameter tuning using hyperopts in order to select the best approach balancing between model explainability and model accuracy.
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 1 Introduction
+# MAGIC ## 1 Introduction
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1.1 Model Background and Initiation
+# MAGIC ### 1.1 Model Background and Initiation
 # MAGIC The motivations behind this modeling effort is to showcase Lakehouse capabilities combined with EY expertise as it relates to model risk management. The goal is not to build the best model nor to showcase latest state of the art AI capabilities. 
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1.2 Model Purpose
+# MAGIC ### 1.2 Model Purpose
 # MAGIC The purpose of this document is to provide a detailed description of the new retail credit adjudication model.
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1.3 Model Portfolio
+# MAGIC ### 1.3 Model Portfolio
 # MAGIC The MLflow Model Registry component is a centralized model store, set of APIs, and UI, to collaboratively manage the full lifecycle of an MLflow Model. It provides model lineage (which MLflow experiment and run produced the model), model versioning, stage transitions (for example from staging to production), and annotations. Used as a backbone of our model risk management solution accelerator, this becomes the de facto place to register both machine learning and non machine learning models. 
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1.4 Model Risk Rating
+# MAGIC ### 1.4 Model Risk Rating
 # MAGIC Credit Risk Model would give creditors, analysts, and portfolio managers a way of ranking borrowers based on their creditworthiness and default risk. Any issue on the model output would have financial consequences, leading to a relative `HIGH` model materiality. 
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1.5 Model Log of Changes
+# MAGIC ### 1.5 Model Log of Changes
 # MAGIC We captured all different models and previous versions using MLFlow. Model development history is available through the MLFlow registry UI / API.
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1.6 Business-Driven Risk Considerations
+# MAGIC ### 1.6 Business-Driven Risk Considerations
 # MAGIC *Note: Explain the business risks that are explored and assessed during the model development process, and how they are accounted for in the final model (outputs). Describe and justify any mitigation action (plan) that helps reduce the business-driven risk.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1.7 Economic and Market Outlook
+# MAGIC ### 1.7 Economic and Market Outlook
 # MAGIC *Note: Explain how the current and forward-looking overall economic conditions may impact the business line and subsequently the model outcome.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1.8 Model Development Process
+# MAGIC ### 1.8 Model Development Process
 # MAGIC *Note: Describe the overall model development process, the different milestones of the process, along with the roles and responsibilities of the stakeholders involved at each of these key steps.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1.9 Economic and Market Outlook
+# MAGIC ### 1.9 Economic and Market Outlook
 # MAGIC *Note: Explain how the current and forward-looking overall economic conditions may impact the business line and subsequently the model outcome.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 2 Data
+# MAGIC ## 2 Data
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.1 Borrower Definition
+# MAGIC ### 2.1 Borrower Definition
 # MAGIC *Note: Describe the borrowers’ categories of the model portfolio/population. For instance, whether the model applies to borrowers with a certain range of exposure, within a geographical area, or with a minimum/maximum of total asset (e.g., when the model also applies to SMEs). It outlines the borrower identification process in the data bases as well.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.2 Data Sources
+# MAGIC ### 2.2 Data Sources
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.2.1 Internal Data Sources
+# MAGIC #### 2.2.1 Internal Data Sources
 # MAGIC *Note: Describe the internal data sources, as well as their appropriateness with the model purpose and model population.*
 
 # COMMAND ----------
@@ -104,7 +104,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.2.2 External Data Sources
+# MAGIC #### 2.2.2 External Data Sources
 # MAGIC
 # MAGIC The external data contains personal information on clients with saving and/or checking accounts. Overall, 1,000 observations are included in the dataset. The following describes the different variables along with the features of the dataset. We display a few records below as well as table statistics.
 # MAGIC
@@ -135,36 +135,36 @@ df_credit.head().drop('RISK_EN', axis=1)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.3 Data Historical Coverage and Suitability
+# MAGIC ### 2.3 Data Historical Coverage and Suitability
 # MAGIC *Note: Describe the data extraction process, along with the period spanned by the data and the statistics on the extracted observations. The section should not only evidence that the extracted data reflects the business practices and experiences, but is also suitable for the model purpose, modeling methodology and modeling assumptions.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.4 Modeling Timeframes
+# MAGIC ### 2.4 Modeling Timeframes
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.4.1 Timeframe Concepts
+# MAGIC #### 2.4.1 Timeframe Concepts
 # MAGIC *Note: Explain the different concepts of the modeling timeframes used for the model development, specifically the observation period, the lag period, along with the performance period.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.4.2 Determination of the Performance and Lag Periods
+# MAGIC #### 2.4.2 Determination of the Performance and Lag Periods
 # MAGIC *Note: Describe the determination process of the lag and performance periods, including the judgemental considerations that were used. Provide a justification of the selections and their consistency with the model product and the observed borrowers’ experience. Explain the different concepts of the modeling timeframes used for the model development, specifically the observation period, the lag period, along with the performance period.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.4.3 Modeling Timeframes
+# MAGIC #### 2.4.3 Modeling Timeframes
 # MAGIC *Note: Describe the different modeling timeframes that were finally selected (i.e., the corresponding periods to the concepts explained in Section 2.4.1) for the model development and validation.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.5 Target Variable Definition
+# MAGIC ### 2.5 Target Variable Definition
 # MAGIC
 # MAGIC The model is designed to predict the likelihood of a loan defaulting. The target variable `RISK` (good/bad) is defined using the information in the extracted dataset. The target variable defines the loans status as ‘good’ or ‘bad’. A ‘good’ status means a good credit performance, i.e., the client did not default during the observation period, whereas a ‘bad’ status means a default occurred during the observation period. In the modeling code, ‘good’ is identified as ‘0’, and ‘bad’ is identified as ‘1’ and encoded as our `RISK_EN` column. The following figures depict the target variable distribution (percentage of good/bad), according to the different variables.
 
@@ -187,12 +187,12 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.6 Modeling Populations
+# MAGIC ### 2.6 Modeling Populations
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.6.1 Eligible Population
+# MAGIC #### 2.6.1 Eligible Population
 # MAGIC The following table provides descriptive statistics on the eligible population for the model development, which includes 1,000 observations, in total. Descriptive statistics apply to the overall population, without any data treatment such as exclusion or sampling. ‘NaN’ mostly appears when trying to compute statistics on categorical variables; hence, they may be ignored.
 
 # COMMAND ----------
@@ -202,7 +202,7 @@ df_credit.describe(include='all')
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.6.2 Good-Bad Observations
+# MAGIC #### 2.6.2 Good-Bad Observations
 # MAGIC The following provides statistics on the ‘good’ and ‘bad’ observations. Overall, 700 ‘good’ and 300 ‘bad’ observations are found in the dataset. Histograms of ‘good’ and ‘bad’ observations are plotted below. 
 
 # COMMAND ----------
@@ -230,25 +230,25 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.6.3 Indeterminate Observations
+# MAGIC #### 2.6.3 Indeterminate Observations
 # MAGIC *Note: Describe and provide statistics on observations that cannot be classified as good or bad observations.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.6.4 Statistically Inferred Performance Data
+# MAGIC #### 2.6.4 Statistically Inferred Performance Data
 # MAGIC *Note: Describe the observations whose performance could not be observed (e.g.,indeterminate observations), the reject inference technique used to infer the performance. The reason supporting the selected technique, along with the considered population should be described as well.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.7 Data Exclusions and Treatment
+# MAGIC ### 2.7 Data Exclusions and Treatment
 # MAGIC *Note: Describe exclusions and any treatments (e.g., outlier and missing value treatment, and application of floors and caps) applied to the data, along with the supporting justification.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.8 Sampling Methodology
+# MAGIC ### 2.8 Sampling Methodology
 # MAGIC Two different datasets, training and validation, were created for the modeling purpose. More specifically, a stratified random sampling methodology was used to sample the original dataset: About 80% was used to train the model, and the remaining 20% was considered for the model performance assessment. The tables below present descriptive statistics on the datasets.
 
 # COMMAND ----------
@@ -288,38 +288,38 @@ df_sample.describe()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.9 Modeling Data Assessment
+# MAGIC ### 2.9 Modeling Data Assessment
 # MAGIC *Note: Describe the final dataset that will be used for the model development. Describe the data quality, using statistics and graphs, describe any data limitations and their potential impact on the model
 # MAGIC output.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 3 Model Development
+# MAGIC ## 3 Model Development
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3.1 Methodology Selection
+# MAGIC ### 3.1 Methodology Selection
 # MAGIC *Note: Describe the modeling methodology selection process. More specifically, first present and compare the different alternatives through the literature and industry practice review, and then explain
 # MAGIC the rationale behind the selected approach. In addition, outline the mathematical definitions and equations, along with the assumptions and limitations of the selected modeling methodology.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3.2 Model Segmentation
+# MAGIC ### 3.2 Model Segmentation
 # MAGIC *Note: Describe the model segmentation process, including the judgemental considerations, the statistical analyses, and the supporting rationale for the selected segments.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3.3 Model Variable Selection
+# MAGIC ### 3.3 Model Variable Selection
 # MAGIC *Note: Describe the variable selection process from the initial list until the selected variables. The statistical analyses with their results and the business considerations should be described in the corresponding sub-sections below. Only relevant and applicable sub-sections should documented. Additional analyses or tests may be added.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 3.3.1 Variable Reduction
+# MAGIC #### 3.3.1 Variable Reduction
 # MAGIC Preliminary analyses were conducted to support the variable selection process. More precisely, the variables were plotted according to different bin categories to assess their probability density. Moreover, weights of evidence (WOEs) which measure the relative risk of each bin within each variable were also calculated and evaluated as part of the variable selection process. The results of the probability density and WOEs for each variable are showed below. 
 
 # COMMAND ----------
@@ -377,7 +377,7 @@ def woe_discrete(df, cat_variabe_name, y_df):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 3.3.2 Final Variable Reduction
+# MAGIC #### 3.3.2 Final Variable Reduction
 # MAGIC For the final variable reduction, intervals were created for some continuous variables such as the age, whereas dummies were created for categorical variables such the sex, housing, etc. Results of the analyses are presented below.
 
 # COMMAND ----------
@@ -429,7 +429,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.25, rand
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3.4 Model Estimation
+# MAGIC ### 3.4 Model Estimation
 # MAGIC
 # MAGIC For the model selection and estimation, a 10 fold cross-validation procedure is used to compare and select among different alternative models. The following models were trained using hyperopt for hyper parameter tuning.
 # MAGIC <br>
@@ -585,30 +585,30 @@ client.log_artifact(run_id, '/tmp/mrmgen_matrix.png', 'images')
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3.5 Model Scaling
+# MAGIC ### 3.5 Model Scaling
 # MAGIC *Note: Describe the model scaling process. More specifically, cover the selection of the scaling equations and parameters, as well as the expert judgements that were considered. Display and interpret the model final results.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 4 Model Performance Assessment
+# MAGIC ## 4 Model Performance Assessment
 # MAGIC *Note: Thoroughly assess the model performance in this section. Each sub-section is designed to cover particular dimension that is assessed, outline the analysis or statistical test that is performed and
 # MAGIC provide the results interpretation. Keep only relevant and applicable sub-sections. Add additional analyses or tests.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4.1 Output Analysis
+# MAGIC ### 4.1 Output Analysis
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4.2 Discriminatory Power Testing
+# MAGIC ### 4.2 Discriminatory Power Testing
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 4.2.1 Accuracy Ratio Test
+# MAGIC #### 4.2.1 Accuracy Ratio Test
 # MAGIC
 # MAGIC To better assess the models’ performance, different accuracy tests including, the accuracy ratio, the precision test, the recall test and the F1 test were performed. Results of these tests are showed in the following tables.
 
@@ -636,7 +636,7 @@ for metric in metrics.keys():
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 4.2.2 Kolmogorov-Smirnov Test
+# MAGIC #### 4.2.2 Kolmogorov-Smirnov Test
 # MAGIC
 # MAGIC In addition to the aforementioned performance tests, the KS test was also performed, and results are the following.
 
@@ -661,7 +661,7 @@ for metric in metrics.keys():
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4.3 Sensitivity Analysis
+# MAGIC ### 4.3 Sensitivity Analysis
 # MAGIC A sensitivity analysis was conducted to identify the key variables that mostly impact the model results. For instance, a 5% increase in the following variables, age, credit amount, duration, purpose (if domestic appliances and furniture/equipment) was performed, and the impact reasonableness was assessed. Sensitivity analyses results are showed below.
 
 # COMMAND ----------
@@ -734,58 +734,58 @@ client.log_artifact(run_id, '/tmp/mrmgen_sensitivity.png', 'images')
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4.4 Population Stability Analysis
+# MAGIC ### 4.4 Population Stability Analysis
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4.5 Benchmarking
+# MAGIC ### 4.5 Benchmarking
 # MAGIC For the benchmarking, please refer to the section of the model estimation results, where different models were trained, and the results were compared using confusion matrices. 
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 5 Model Assumptions and Limitations
+# MAGIC ## 5 Model Assumptions and Limitations
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5.1 Model Assumptions
+# MAGIC ### 5.1 Model Assumptions
 # MAGIC *Note: Describe the key assumptions made throughout the model development process and provide evidence to support their reasonableness and soundness.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5.2 Model Limitations
+# MAGIC ### 5.2 Model Limitations
 # MAGIC *Note: Describe the key model limitations, their potential impact on the model, as well as the corresponding mitigation action plan(s) to reduce the model risk.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 6 Model Ongoing Monitoring
+# MAGIC ## 6 Model Ongoing Monitoring
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6.1 Ongoing Performance Assessment
+# MAGIC ### 6.1 Ongoing Performance Assessment
 # MAGIC *Note: Describe the ongoing model performance monitoring plan. Cover the statistical tests (including e.g., the frequency and acceptance thresholds) that will be performed on an ongoing basis to
 # MAGIC ensure the model is still performing adequately.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6.2 Documentation Review
+# MAGIC ### 6.2 Documentation Review
 # MAGIC *Note: Describe the conditions or types of model changes that trigger the model documentation review, as well as the key components that need to be reviewed.*
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 7 References
+# MAGIC ## 7 References
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 8 Model registry
+# MAGIC ## 8 Model registry
 # MAGIC Finally, we will log all evidence required to trigger an independant review of our modeling approach. We show how to do so programmatically, though this process could be done manually from the MLFlow UI.
 
 # COMMAND ----------
@@ -795,7 +795,7 @@ model_fqdn = f'{catalog}.{schema}.{model_name}'
 
 # COMMAND ----------
 
-# DBTITLE 1,Credit Model Registration Workflow
+# DBTITLE 0,Credit Model Registration Workflow
 model_uri = "runs:/{}/model".format(run_id)
 model_version_description = """This version of credit adjudication model was built for the purpose of unity catalog demo. Model was co-developped between EY and Databricks, finding {} as best fit model trained against {} different experiments.
 All experiments are tracked and available on MLFlow experiment tracker.""".format(type(best_model).__name__, max_evals)
@@ -831,9 +831,28 @@ client.set_registered_model_alias(name=model_fqdn, version=model_version, alias=
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC Upon completion of this notebook, one can run utility library as follows and get the resulting [PDF](https://github.com/databricks-industry-solutions/fsi-mrm-generation/blob/main/templates/Credit%20Adjudication%20-%20Output.pdf) document
+# MAGIC
+# MAGIC ```
+# MAGIC pip install -r requirements.txt
+# MAGIC python databricks.py \
+# MAGIC     --db-workspace my-workspace-url \
+# MAGIC     --db-token my-workspace-token \
+# MAGIC     --model-name my-model-name \
+# MAGIC     --model-version my-model-version \
+# MAGIC     --output my-model-output.pdf
+# MAGIC ```
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC <div style="text-align: center; margin-top: 30px;">
 # MAGIC     <img src='https://assets.ey.com/content/dam/ey-sites/ey-com/en_gl/generic/logos/20170526-EY-Digital-Brand.svg' alt="Logo" height="100px">
 # MAGIC     <br>
 # MAGIC     <br>
 # MAGIC     <em>Disclaimer: The views and opinions expressed in this blog are those of the authors and do not necessarily reflect the policy or position of EY.</em>
 # MAGIC </div>
+
+# COMMAND ----------
+
+
