@@ -26,6 +26,20 @@ def load_verbatim(verbatim_file=None):
         return yaml.safe_load(pkg_resources.read_text(tmpl, 'verbatim.yml'))
 
 
+def extract_aliases(model_object):
+    """
+    Utility function converting MLFlow alias object to key value pairs
+    :param model_object:
+    :return:
+    """
+    alias_kv = {}
+    if 'aliases' in model_object:
+        aliases = model_object['aliases']
+        for alias in aliases:
+            alias_kv[int(alias['version'])] = alias['alias']
+    return alias_kv
+
+
 def extract_tags(model_object):
     """
     Utility function converting MLFlow tag object to key value pairs
@@ -96,7 +110,7 @@ def image_to_html(data_entry):
     return [
         '<div>',
         '<figure class="image">',
-        '<img src=\'{}\'/>'.format(data_entry['data']),
+        '<img src=\'data:image/png;base64, {}\'/>'.format(data_entry),
         '</figure>',
         '</div>'
     ]

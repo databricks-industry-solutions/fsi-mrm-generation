@@ -270,7 +270,7 @@ class ExperimentDataSources(MRMInterface):
         self.data_sources = data_sources
 
     def sources(self):
-        return [source.name for source in self.data_sources]
+        return [[source.name, source.fmt] for source in self.data_sources]
 
     def to_html(self, h_level=1, dot=None):
         html = [
@@ -317,34 +317,98 @@ class Notebook(MRMInterface):
                     cmd_output = command['results']
                     data_list = cmd_output['data']
                     for data_entry in data_list:
-                        if not isinstance(data_entry, str):
-                            if data_entry['type'] == 'image':
+                        if data_entry['type'] == 'mimeBundle':
+                            bundle = data_entry['data']
+                            if 'image/png' in bundle:
+                                image_b64 = bundle['image/png']
                                 html_body.append('<div>')
                                 html_body.append(f'<small class="text-muted">output cell #{i}</small>')
                                 html_body.append('</div>')
                                 html_body.append('<div class="container jumbotron section-markdown">')
-                                html_body.extend(image_to_html(data_entry))
+                                html_body.extend(image_to_html(image_b64))
                                 html_body.append('</div>')
         html_body.append('</div>')
         return html_body
 
 
+class ModelPreviousVersion(MRMInterface):
+    def __init__(
+            self,
+            version,
+            timestamp,
+            user,
+            alias
+    ):
+        self.version = version
+        self.timestamp = timestamp
+        self.user = user
+        self.alias = alias
+
+    def to_html(self, h_level=1, dot=None):
+        html = [
+                '<tr>',
+                f'<td>{self.version}</td>',
+                f'<td>{self.timestamp}</td>',
+                f'<td>{self.user}</td>'
+            ]
+
+        if self.alias:
+            html.append(f'<td><span class="badge badge-secondary">@{self.alias}</span></td>')
+        else:
+            html.append(f'<td></td>')
+        html.append('</tr>')
+        return html
+
+
+class ModelVersions(MRMInterface):
+    def __init__(
+            self,
+            model_name,
+            model_versions
+    ):
+        self.model_name = model_name
+        self.model_versions = model_versions
+
+    def to_html(self, h_level=1, dot=None):
+
+        html = [
+            '<div class="section-content">',
+            '<table class="table">',
+            '<tr>',
+            '<th>Version</th>',
+            '<th>Timestamp</th>',
+            '<th>Owner</th>',
+            '<th>Alias</th>',
+            '</tr>'
+        ]
+
+        for version in sorted(self.model_versions, key=lambda x: x.version):
+            html.extend(version.to_html())
+
+        html.extend(['</table>', '</div>'])
+        return html
+
+
 class ModelParent(MRMInterface):
     def __init__(
             self,
+            model_catalog,
+            model_schema,
             model_name,
             model_description,
             model_tags,
             model_owner,
             model_timestamp,
-            model_submissions
+            model_parent_aliases
     ):
+        self.model_catalog = model_catalog
+        self.model_schema = model_schema
         self.model_name = model_name
         self.model_description = model_description
         self.model_tags = model_tags
         self.model_owner = model_owner
         self.model_timestamp = model_timestamp
-        self.model_submissions = model_submissions
+        self.model_parent_aliases = model_parent_aliases
 
     def to_html(self, h_level=1, dot=None):
         html = [
@@ -353,6 +417,14 @@ class ModelParent(MRMInterface):
             '<tr>',
             '<th>Model name</th>',
             f'<td>{self.model_name}</td>',
+            '</tr>',
+            '<tr>',
+            '<th>Model catalog</th>',
+            f'<td>{self.model_catalog}</td>',
+            '</tr>',
+            '<tr>',
+            '<th>Model schema</th>',
+            f'<td>{self.model_schema}</td>',
             '</tr>',
             '<tr>',
             '<th>Model creation date</th>',
@@ -365,9 +437,10 @@ class ModelParent(MRMInterface):
         ]
 
         for key in self.model_tags:
+            tag = ' '.join(key.split('_')).capitalize()
             html.extend([
                 '<tr>',
-                f'<th><i class="bi bi-tag-fill"></i> {key}</th>',
+                f'<th><i class="bi bi-tag-fill"></i> {tag}</th>',
                 f'<td>{self.model_tags[key]}</td>',
                 '</tr>'
             ])
@@ -380,22 +453,18 @@ class ModelSubmission(MRMInterface):
     def __init__(
             self,
             model_description,
-            model_tags,
             model_owner,
             model_version,
             model_timestamp,
-            model_stage,
-            model_transition,
-            model_run_id
+            model_run_id,
+            model_tags
     ):
         self.model_description = model_description
-        self.model_tags = model_tags
         self.model_owner = model_owner
         self.model_version = model_version
         self.model_timestamp = model_timestamp
-        self.model_stage = model_stage
-        self.model_transition = model_transition
         self.model_run_id = model_run_id
+        self.model_tags = model_tags
 
     def to_html(self, h_level=1, dot=None):
         html = [
@@ -412,30 +481,18 @@ class ModelSubmission(MRMInterface):
             '<tr>',
             '<th>Model version</th>',
             f'<td>{self.model_version}</td>',
-            '</tr>'
+            '</tr>',
+            '<tr>',
+            '<th>Model run Id</th>',
+            f'<td>{self.model_run_id}</td>',
+            '</tr>',
         ]
 
-        if self.model_transition:
-            html.extend([
-                '<tr>',
-                '<th>Model stage</th>',
-                f'<td>{self.model_stage.to_html(h_level)} '
-                f'<i class="bi bi-arrow-right"></i>'
-                f' {self.model_transition.to_html(h_level)}</td>',
-                '</tr>'
-            ])
-        else:
-            html.extend([
-                '<tr>',
-                '<th>Model stage</th>',
-                f'<td>{self.model_stage.to_html(h_level)}</td>',
-                '</tr>'
-            ])
-
         for key in self.model_tags:
+            tag = ' '.join(key.split('_')).capitalize()
             html.extend([
                 '<tr>',
-                f'<th><i class="bi bi-tag-fill"></i> {key}</th>',
+                f'<th><i class="bi bi-tag-fill"></i> {tag}</th>',
                 f'<td>{self.model_tags[key]}</td>',
                 '</tr>'
             ])
@@ -599,17 +656,15 @@ class Libraries(MRMInterface):
 class Lineage(MRMInterface):
     def __init__(
             self,
-            data_sources
+            data_sources,
+            model_name
     ):
         self.data_sources = data_sources
+        self.model_name = model_name
 
     def to_html(self, h_level=1, dot=None):
-        dot = Digraph(comment='model lineage', format='png', graph_attr={
-            'ratio': 'fill',
-            'margin': '0',
-            'dpi': '600'
-        })
-        dot.node('MODEL', label='MODEL', color='black', shape='circle', fontname='courier')
+        dot = Digraph(comment='model lineage', format='png', graph_attr={'rankdir': 'LR', 'size': '7.75,10.25'})
+        dot.node('MODEL', label=f'<<model>>\n{self.model_name}', color='black', shape='box', fontname='courier')
         for data_source in self.data_sources:
             dot.edge(string_to_uid(data_source.short_name()), 'MODEL')
             data_source.to_html(dot=dot)
@@ -626,17 +681,19 @@ class LineageDataSource(MRMInterface):
     def __init__(
             self,
             name,
+            type,
             children
     ):
         self.name = name
+        self.type = type
         self.children = children
 
     def short_name(self):
         return self.name.split('/')[-1]
 
     def to_html(self, h_level=1, dot=None):
-        node_id = string_to_uid(self.short_name())
-        dot.node(node_id, label=self.short_name(), color='black', shape='box', fontname='courier')
+        node_id = string_to_uid(self.name)
+        dot.node(node_id, label=f'<<{self.type}>>\n{self.name}', color='black', shape='box', fontname='courier')
         for child in self.children:
-            dot.edge(string_to_uid(child.short_name()), node_id)
-            child.to_graph(dot)
+            dot.edge(string_to_uid(child.name), node_id)
+            child.to_html(dot=dot)

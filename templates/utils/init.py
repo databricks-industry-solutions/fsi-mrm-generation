@@ -41,9 +41,10 @@ from mlflow.models import infer_signature
 
 # COMMAND ----------
 
-catalog = 'fsgtm'
-schema = 'mrm'
-table_name = 'german_credit_data_risk'
+catalog = 'users'
+schema = dbutils.notebook.entry_point.getDbutils().notebook().getContext().userName().get()
+schema = schema.split('@')[0].replace('.', '_').lower()
+table_name = 'credit_data'
 volume_name = 'landing_zone'
 
 # COMMAND ----------

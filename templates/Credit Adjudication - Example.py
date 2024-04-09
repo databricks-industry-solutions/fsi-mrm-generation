@@ -408,7 +408,7 @@ del df_credit["RISK"]
 
 feature_red = SelectKBest(f_classif, k=15) \
   .fit(
-    df_credit[[i for i in df_credit.columns if i not in ['RISK','RISK_EN']]], 
+    df_credit[[i for i in df_credit.columns if i not in ['RISK','RISK_EN']]],
     df_credit['RISK_EN']
   )
 
@@ -795,6 +795,7 @@ model_fqdn = f'{catalog}.{schema}.{model_name}'
 
 # COMMAND ----------
 
+# DBTITLE 1,Credit Model Registration Workflow
 model_uri = "runs:/{}/model".format(run_id)
 model_version_description = """This version of credit adjudication model was built for the purpose of unity catalog demo. Model was co-developped between EY and Databricks, finding {} as best fit model trained against {} different experiments.
 All experiments are tracked and available on MLFlow experiment tracker.""".format(type(best_model).__name__, max_evals)

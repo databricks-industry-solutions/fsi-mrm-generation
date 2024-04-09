@@ -37,13 +37,27 @@ mrm.generate_doc(
 )
 ```
 
-See example [output](mrm_output.pdf) for a given test model done using an existing solution 
+See example [output](templates%2FCredit%20Adjudication%20-%20Output.pdf) for a given test model done using an existing solution 
 [accelerator](https://github.com/databricks-industry-solutions/value-at-risk). 
 
 Make sure to have both `wkhtmltopdf` and `graphviz` binary installed
 
 ```bash
 sudo apt-get install -y graphviz wkhtmltopdf
+```
+
+### Command line
+
+Should you need to run the same from a command line utility, please refer to `databricks.py`.
+
+```shell
+pip install -r requirements.txt
+python databricks.py \
+    --db-workspace my-workspace-url \
+    --db-token my-workspace-token \
+    --model-name my-model-name \
+    --model-version my-model-version \
+    --output my-model-output.pdf
 ```
 
 ## Template documentation
@@ -74,4 +88,6 @@ set forth below.
 | mdtex2html                       | Markdown parser     | MIT     | https://pypi.org/project/mdtex2html/        |
 | graphviz                         | Graph visualization | MIT     | https://pypi.org/project/graphviz/         |
 | pdfkit                           | html to pdf         | MIT     | https://pypi.org/project/pdfkit/           |
+
+
 
