@@ -13,7 +13,7 @@ setup(
         'mdtex2html==1.2.0',
         'graphviz==0.20.1',
         'pdfkit==1.0.0',
-        'mlflow==2.11.1'
+        'mlflow==2.12.1'
     ],
     long_description_content_type='text/markdown',
     url='https://github.com/databricks-industry-solutions/fsi-mrm-generation',
