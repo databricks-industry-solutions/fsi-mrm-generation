@@ -8,7 +8,7 @@ setup(
     description='Generate documentation for model risk management',
     include_package_data=True,
     install_requires=[
-        'requests==2.31.0',
+        'requests==2.32.0',
         'PyYAML==6.0',
         'mdtex2html==1.2.0',
         'graphviz==0.20.1',
