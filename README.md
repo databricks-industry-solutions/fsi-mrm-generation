@@ -36,9 +36,9 @@ See example [output](templates%2FCredit%20Adjudication%20-%20Output.pdf) for a g
 
 ### Local development with uv
 
-This project uses [uv](https://docs.astral.sh/uv/). `uv sync` provisions the
-pinned Python (see `.python-version`), creates `.venv`, and installs all
-dependencies from `pyproject.toml`:
+This project uses [uv](https://docs.astral.sh/uv/). `uv sync` provisions a
+compatible Python (per `requires-python` in `pyproject.toml`), creates `.venv`,
+and installs all dependencies from `pyproject.toml`:
 
 ```bash
 uv sync

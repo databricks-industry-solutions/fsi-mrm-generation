@@ -1,5 +1,0 @@
-databricks-sdk>=0.40.0
-PyYAML>=6.0.1
-mdtex2html>=1.2.0
-graphviz>=0.20.3
-pdfkit>=1.0.0
