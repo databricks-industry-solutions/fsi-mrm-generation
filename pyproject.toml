@@ -1,0 +1,52 @@
+[project]
+name = "model-risk-management"
+version = "1.0"
+description = "Generate documentation for model risk management"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Databricks License" }
+authors = [{ name = "Antoine Amend", email = "antoine.amend@databricks.com" }]
+keywords = ["databricks", "mlflow", "unity-catalog", "model-risk-management", "mrm"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "License :: Other/Proprietary License",
+]
+
+# Runtime dependencies. These are pure-Python wrappers; note that `graphviz`
+# and `pdfkit` ALSO require native binaries (`dot` and `wkhtmltopdf`) that are
+# NOT pip-installable. See README.md for the `graphviz` / `wkhtmltopdf` install.
+dependencies = [
+    "databricks-sdk>=0.40.0",
+    "PyYAML>=6.0.1",
+    "mdtex2html>=1.2.0",
+    "graphviz>=0.20.3",
+    "pdfkit>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/databricks-industry-solutions/fsi-mrm-generation"
+
+[project.scripts]
+mrm-generate = "databricks.cli:main"
+
+[dependency-groups]
+# Dev tooling — installed by `uv sync`, excluded from the published wheel.
+dev = [
+    "ruff>=0.6.0",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+# The local package is named `databricks` and lives alongside `databricks.sdk`
+# from the SDK via a pkgutil namespace (see databricks/__init__.py). Only ship
+# our own subpackages, never the SDK's.
+[tool.setuptools.packages.find]
+include = ["databricks", "databricks.tmpl", "databricks.tmpl.assets"]
+
+# Non-Python assets loaded at runtime via importlib.resources must be packaged.
+[tool.setuptools.package-data]
+"databricks.tmpl" = ["*.html", "*.yml"]
+"databricks.tmpl.assets" = ["*.css", "*.png"]

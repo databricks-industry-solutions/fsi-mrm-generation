@@ -1,6 +1,6 @@
 import logging
 
-import requests
+from databricks.sdk import WorkspaceClient
 
 from databricks.mrm_objects import *
 from databricks.mrm_utils import *
@@ -13,26 +13,31 @@ a_little_bit_of_space = '<div class="col-xs-12" style="height:70px;"></div>'
 
 class ModelRiskApi:
 
-    def __init__(self, base_url, api_token):
+    def __init__(self, client: WorkspaceClient):
+        """
+        Initialize ModelRiskApi with a Databricks SDK WorkspaceClient.
+        The SDK handles authentication automatically via environment variables,
+        config profiles, managed identity, OAuth, or service principals.
+        This replaces the legacy pattern of passing raw workspace URL and PAT token.
+        :param client: An authenticated WorkspaceClient instance from databricks-sdk
+        """
+        self.client = client
 
-        self.base_url = base_url
-        self.headers = {'Authorization': f'Bearer {api_token}'}
-
-    def __submit_api_call(self, url):
+    def __submit_api_call(self, path, query=None):
+        """
+        Submit an authenticated API call via the Databricks SDK's API client.
+        The SDK handles token refresh, OAuth flows, and retry logic automatically.
+        :param path: The API path (e.g., '/api/2.0/mlflow/runs/get')
+        :param query: Optional dict of query parameters
+        :return: Parsed JSON response as dict
+        """
         try:
-            response = requests.get(url=url, headers=self.headers)
-            response.raise_for_status()  # this will raise an error if the request failed
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request to {url} failed: {e}")
+            data = self.client.api_client.do('GET', path, query=query)
+        except Exception as e:
+            logger.error(f"Request to {path} failed: {e}")
             raise
 
-        try:
-            data = response.json()  # this will raise an error if the response isn't valid JSON
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to decode JSON from response: {e}")
-            raise
-
-        if 'error_code' in data:
+        if isinstance(data, dict) and 'error_code' in data:
             raise Exception(f"Error while retrieving content, [{data}]")
         return data
 
@@ -180,36 +185,88 @@ class ModelRiskApi:
             logged_flavors.append(ArtifactFlavor(executor_type, executor_version))
         return logged_flavors
 
-    def __extract_run_artifacts(self, run_tags):
+    ARTIFACT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S.%f'
+
+    def __build_artifact(self, created, flavors, signature):
+        """
+        Assemble an Artifact from the raw flavors/signature documents, regardless of whether they were sourced from
+        the legacy `mlflow.log-model.history` run tag or the MLflow 3.x MLmodel artifact file. Both share the same
+        shape (a `utc_time_created` string, a `flavors` mapping and a `signature` with JSON-encoded inputs/outputs).
+        :param created: the model creation timestamp as a string (utc_time_created)
+        :param flavors: the mapping of logged flavors, or None
+        :param signature: the model signature dict with `inputs`/`outputs` JSON strings, or None
+        :return: an Artifact wrapping creation time, flavors and (optionally) the signature
+        """
+        created = datetime.datetime.strptime(created, self.ARTIFACT_TIME_FORMAT) if created else None
+        flavors = self.__extract_run_artifact_flavors(flavors) if flavors else []
+        if signature:
+            signature_input = self.__extract_run_artifact_signature(signature['inputs']) if signature.get('inputs') else []
+            signature_output = self.__extract_run_artifact_signature(signature['outputs']) if signature.get('outputs') else []
+            signature = ArtifactSignature(signature_input, signature_output)
+        else:
+            signature = None
+        return Artifact(created, flavors, signature)
+
+    def __get_logged_model_mlmodel(self, model_id):
+        """
+        MLflow 3.x logs a model's flavors, signature and interpreter versions into the `MLmodel` artifact file
+        attached to a LoggedModel rather than into the run's `mlflow.log-model.history` tag. We download and parse
+        that YAML document for the given logged model.
+        :param model_id: the LoggedModel id (e.g. `m-...`) referenced by the run outputs
+        :return: the parsed MLmodel document as a dict, or None if unavailable
+        """
+        logger.info(f'Retrieving MLmodel artifact for logged model [{model_id}]')
+        try:
+            response = self.client.api_client.do(
+                'GET',
+                f'/api/2.0/mlflow/logged-models/{model_id}/artifacts/files',
+                query={'artifact_file_path': 'MLmodel'},
+                raw=True,
+            )
+        except Exception as e:
+            logger.error(f"Error retrieving MLmodel for logged model [{model_id}]: {e}")
+            return None
+        contents = response['contents'] if isinstance(response, dict) else response
+        raw = contents.read()
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode('utf-8')
+        return yaml.safe_load(raw)
+
+    def __extract_run_artifacts(self, run_tags, run_object):
         """
         MLFlow captured all artifacts for the given model experiment. Artifacts may include model input and output
         signatures as well as interpreter versions and ML frameworks.
-        :param run_tags: The tag captured on MLFlow as JSON string.
+        :param run_tags: The tags captured on MLFlow as a key/value dict.
+        :param run_object: The full run object (used to resolve MLflow 3.x logged models via `outputs`).
         :return: the list of artifacts together with model signature
         """
-        model_info = run_tags['mlflow.log-model.history']
-        fmt = '%Y-%m-%d %H:%M:%S.%f'
-
+        # Legacy path: models logged with MLflow < 3.x recorded flavors and signature inline in the run tag.
+        model_info = run_tags.get('mlflow.log-model.history')
         if model_info:
-            artifacts = []
-            model_info = json.loads(model_info)
-            for model_logged in model_info:
-                created = datetime.datetime.strptime(model_logged['utc_time_created'], fmt)
-                if 'flavors' in model_logged:
-                    flavors = self.__extract_run_artifact_flavors(model_logged['flavors'])
-                else:
-                    flavors = []
-                if 'signature' in model_logged:
-                    signature = model_logged['signature']
-                    signature_input = self.__extract_run_artifact_signature(signature['inputs'])
-                    signature_output = self.__extract_run_artifact_signature(signature['outputs'])
-                    signature = ArtifactSignature(signature_input, signature_output)
-                else:
-                    signature = None
-                artifacts.append(Artifact(created, flavors, signature))
+            artifacts = [
+                self.__build_artifact(m.get('utc_time_created'), m.get('flavors'), m.get('signature'))
+                for m in json.loads(model_info)
+            ]
             return Artifacts(artifacts)
-        else:
-            return None
+
+        # MLflow 3.x / Unity Catalog: the run references its logged models via `outputs.model_outputs`, and the
+        # flavors/signature now live in each logged model's MLmodel artifact file (see __get_logged_model_mlmodel).
+        model_outputs = (run_object.get('outputs') or {}).get('model_outputs') or []
+        artifacts = []
+        for model_output in model_outputs:
+            model_id = model_output.get('model_id')
+            if not model_id:
+                continue
+            mlmodel = self.__get_logged_model_mlmodel(model_id)
+            if not mlmodel:
+                continue
+            artifacts.append(self.__build_artifact(
+                mlmodel.get('utc_time_created'), mlmodel.get('flavors'), mlmodel.get('signature')
+            ))
+
+        if artifacts:
+            return Artifacts(artifacts)
+        return None
 
     @staticmethod
     def __extract_source_lineage_name(data_source):
@@ -335,7 +392,7 @@ class ModelRiskApi:
 
         run_data_sources = self.__extract_run_data_sources(run_object, run_tags)
         run_cluster = self.__extract_run_cluster(run_tags)
-        run_artifacts = self.__extract_run_artifacts(run_tags)
+        run_artifacts = self.__extract_run_artifacts(run_tags, run_object)
         run_libraries = self.__extract_run_libraries(run_tags)
 
         if run_description:
@@ -451,14 +508,17 @@ class ModelRiskApi:
         :return:
         """
         logger.info(f'Retrieving version [{model_version}] for model [{model_name}]')
-        url = f'{self.base_url}/api/2.0/mlflow/unity-catalog/model-versions/get?name={model_name}&version={model_version}'
-        data = self.__submit_api_call(url)
+        data = self.__submit_api_call(
+            '/api/2.0/mlflow/unity-catalog/model-versions/get',
+            query={'name': model_name, 'version': str(model_version)}
+        )
         return self.__process_model_version(data, model_version)
 
     def __get_model_versions(self, model_name, model_parent_aliases):
         logger.info(f'Retrieving versions for model [{model_name}]')
-        url = f'{self.base_url}/api/2.1/unity-catalog/models/{model_name}/versions'
-        data = self.__submit_api_call(url)
+        data = self.__submit_api_call(
+            f'/api/2.1/unity-catalog/models/{model_name}/versions'
+        )
         return self.__process_model_versions(data, model_name, model_parent_aliases)
 
     def __get_model_parent(self, model_name):
@@ -470,8 +530,10 @@ class ModelRiskApi:
         :return: The business context surrounding our model, as captured by MLFlow directly or filled by end user.
         """
         logger.info(f'Retrieving model [{model_name}]')
-        url = f'{self.base_url}/api/2.0/mlflow/unity-catalog/registered-models/get?name={model_name}'
-        data = self.__submit_api_call(url)
+        data = self.__submit_api_call(
+            '/api/2.0/mlflow/unity-catalog/registered-models/get',
+            query={'name': model_name}
+        )
         return self.__process_model_parent(data)
 
     def __get_model_run(self, run_id):
@@ -482,26 +544,39 @@ class ModelRiskApi:
         :return: the technical context surrounding a given model, returned as wrapped class for HTML output
         """
         logger.info(f'Retrieving run_id [{run_id}] associated to model')
-        url = f'{self.base_url}/api/2.0/mlflow/runs/get?run_id={run_id}'
-        data = self.__submit_api_call(url)
+        try:
+            data = self.__submit_api_call(
+                '/api/2.0/mlflow/runs/get',
+                query={'run_id': run_id}
+            )
+        except Exception as e:
+            # The run's experiment can be deleted (or otherwise unavailable) on the
+            # tracking server even when the model version still exists. Degrade
+            # gracefully: skip the experiment-derived sections rather than failing
+            # the whole document. Callers must treat a None model_run accordingly.
+            logger.warning(f"Could not retrieve run [{run_id}] (experiment may be deleted): {e}")
+            return None
         return self.__process_model_run(data, run_id)
 
     def __get_lineage_rec(self, upstream_source, upstream_type):
         """
-        Querying the UC API, we retrieve all data lineage for each data source captured on MLFlow experiment. This
-        requires call that same API recursively to fetch all upstream dependencies.
+        Querying the Unity Catalog lineage API via the Databricks SDK, we retrieve all data lineage for each data
+        source captured by MLFlow experiment. This requires calling the same API recursively to fetch all upstream
+        dependencies. The SDK handles authentication and retry logic.
         :param upstream_source: the name of the data source to fetch from table API, in the form of 3 layer namespace
         :param upstream_type: the type of the data source to fetch from table API, in the form of 3 layer namespace
         :return: the entire upstream lineage wrapped as a class for HTML output
         """
         children = []
-        url = f'{self.base_url}/api/2.0/lineage-tracking/table-lineage?table_name={upstream_source}'
-        if upstream_type == 'delta':
-            response = json.loads(requests.get(url=url, headers=self.headers).text)
-            if 'error_code' in response:
-                logger.error(f"Error in lineage response, {response['message']}")
-            else:
+        if upstream_type in ('delta', 'delta_table'):
+            try:
+                response = self.__submit_api_call(
+                    '/api/2.0/lineage-tracking/table-lineage',
+                    query={'table_name': upstream_source}
+                )
                 children = self.__process_lineage(response)
+            except Exception as e:
+                logger.error(f"Error in lineage response for {upstream_source}: {e}")
         return LineageDataSource(upstream_source, upstream_type, children)
 
     def __get_lineage(self, data_source_names, model_name):
@@ -521,10 +596,16 @@ class ModelRiskApi:
         :return: the notebook content returned as encoded base 64
         """
         run_id = job_id.split('/')[-1]
-        url = f'{self.base_url}/api/2.1/jobs/runs/export?run_id={run_id}&views_to_export=CODE'
-        response = json.loads(requests.get(url=url, headers=self.headers).text)
-        if 'error_code' in response:
-            logger.error(f"Error in job response, {response['message']}")
+        try:
+            response = self.__submit_api_call(
+                '/api/2.1/jobs/runs/export',
+                query={'run_id': run_id, 'views_to_export': 'CODE'}
+            )
+        except Exception as e:
+            logger.error(f"Error in job response: {e}")
+            return None
+        if 'views' not in response:
+            logger.error(f"Could not find any output content for job [{job_id}]")
             return None
         content = list(filter(lambda x: x['type'] == 'NOTEBOOK', response['views']))
         if len(content) > 0:
@@ -541,10 +622,16 @@ class ModelRiskApi:
         :return: the notebook content returned as encoded base 64
         """
         logger.info(f'Retrieving notebook [{remote_path}] associated to model run')
-        url = f'{self.base_url}/api/2.0/workspace/export?path={remote_path}&format=HTML&direct_download=False'
-        response = json.loads(requests.get(url=url, headers=self.headers).text)
-        if 'error_code' in response:
-            logger.error(f"Error in notebook response, {response['message']}")
+        try:
+            response = self.__submit_api_call(
+                '/api/2.0/workspace/export',
+                query={'path': remote_path, 'format': 'HTML', 'direct_download': 'false'}
+            )
+        except Exception as e:
+            logger.error(f"Error in notebook response: {e}")
+            return None
+        if 'content' not in response:
+            logger.error(f"Error in notebook response, no content returned")
             return None
         html_org_content = str(base64.b64decode(response['content']), 'utf-8')
         return self.__extract_notebook(html_org_content)
@@ -574,11 +661,15 @@ class ModelRiskApi:
         # retrieve model from Unity Catalog
         model_parent = self.__get_model_parent(model_name)
         model_versions = self.__get_model_versions(model_name, model_parent.model_parent_aliases)
+        if model_version is None:
+            # No version supplied: default to the latest registered version.
+            model_version = max(int(v.version) for v in model_versions.model_versions)
+            logger.info(f'No version specified; using latest version [{model_version}]')
         model_version = self.__get_model_version(model_name, model_version)
         model_run = self.__get_model_run(model_version.model_run_id)
 
         # retrieve model data input and lineage
-        if model_run.run_data_sources:
+        if model_run and model_run.run_data_sources:
             data_sources = model_run.run_data_sources
             data_lineage = self.__get_lineage(data_sources.sources(), model_name)
         else:
@@ -669,9 +760,10 @@ class ModelRiskApi:
             a_bit_of_space
         ])
 
-        html.extend(model_run.to_html(h_level=1))
-        html.append(a_little_bit_of_space)
-        if model_run.run_description:
+        if model_run:
+            html.extend(model_run.to_html(h_level=1))
+            html.append(a_little_bit_of_space)
+        if model_run and model_run.run_description:
             html.append('<small class="text-muted">description from mlflow experiment</small>')
             html.extend(model_run.run_description.to_html(h_level=2))
         else:
@@ -703,7 +795,7 @@ class ModelRiskApi:
             f'<p>{verbatim["implementation_artifacts"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.run_artifacts:
+        if model_run and model_run.run_artifacts:
             html.extend(model_run.run_artifacts.to_html(h_level=3))
         else:
             html.extend([
@@ -723,7 +815,7 @@ class ModelRiskApi:
             f'<p>{verbatim["implementation_approach"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.source_code:
+        if model_run and model_run.source_code:
             html.extend(model_run.source_code.to_html(h_level=2))
         else:
             html.extend([
@@ -743,7 +835,7 @@ class ModelRiskApi:
             f'<p>{verbatim["model_parameters"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.run_params:
+        if model_run and model_run.run_params:
             html.extend(model_run.run_params.to_html(h_level=3))
         else:
             html.extend([
@@ -763,7 +855,7 @@ class ModelRiskApi:
             f'<p>{verbatim["model_metrics"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.run_metrics:
+        if model_run and model_run.run_metrics:
             html.extend(model_run.run_metrics.to_html(h_level=3))
         else:
             html.extend([
@@ -794,7 +886,7 @@ class ModelRiskApi:
             f'<p>{verbatim["model_dependencies_infra"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.run_cluster:
+        if model_run and model_run.run_cluster:
             html.extend(model_run.run_cluster.to_html(h_level=2))
         else:
             html.extend([
@@ -815,7 +907,7 @@ class ModelRiskApi:
             '</div>'
         ])
 
-        if model_run.run_libraries and model_run.run_libraries.non_empty():
+        if model_run and model_run.run_libraries and model_run.run_libraries.non_empty():
             html.extend(model_run.run_libraries.to_html(h_level=2))
         else:
             html.extend([
@@ -835,7 +927,7 @@ class ModelRiskApi:
             f'<p>{verbatim["model_signature"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.run_artifacts:
+        if model_run and model_run.run_artifacts:
             for artifact in model_run.run_artifacts.artifacts:
                 if artifact.signature:
                     html.extend(artifact.signature.to_html(h_level=3))

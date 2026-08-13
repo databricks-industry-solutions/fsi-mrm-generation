@@ -1,5 +1,3 @@
-<img src=https://d1r5llqwmkrl74.cloudfront.net/notebooks/fsi/fs-lakehouse-logo-transparent.png width="600px">
-
 # Model risk management
 
 **How to build models that move quickly through validation and audit**: *With regulators and policymakers seriously
@@ -9,10 +7,6 @@ reliable enough for business to trust and act upon. This utility library will au
 submitted new models as part of a model risk management practice. Using mlflow, delta lake, unity catalog and their
 respective APIs, we aim at bringing both the technical and business context surrounding your model submission, reducing
 time to market and facilitating independent validation of financial and non-financial models.*
-
-[![DBR](https://img.shields.io/badge/DBR-11.3ML-red?logo=databricks&style=for-the-badge)](https://docs.databricks.com/release-notes/runtime/11.3ml.html)
-[![CLOUD](https://img.shields.io/badge/CLOUD-ALL-blue?logo=googlecloud&style=for-the-badge)](https://databricks.com/try-databricks)
-[![POC](https://img.shields.io/badge/POC-1_days-green?style=for-the-badge)](https://databricks.com/try-databricks)
 
 ___
 
@@ -40,25 +34,34 @@ mrm.generate_doc(
 See example [output](templates%2FCredit%20Adjudication%20-%20Output.pdf) for a given test model done using an existing solution 
 [accelerator](https://github.com/databricks-industry-solutions/value-at-risk). 
 
-Make sure to have both `wkhtmltopdf` and `graphviz` binary installed
+### Local development with uv
+
+This project uses [uv](https://docs.astral.sh/uv/). `uv sync` provisions the
+pinned Python (see `.python-version`), creates `.venv`, and installs all
+dependencies from `pyproject.toml`:
 
 ```bash
-sudo apt-get install -y graphviz wkhtmltopdf
+uv sync
+./install-binaries-macos.sh   # one-time: native binaries (macOS)
 ```
 
 ### Command line
 
-Should you need to run the same from a command line utility, please refer to `databricks.py`.
+Run the CLI via the `mrm-generate` console script (or the historical
+`python databricks.py` entry point):
 
 ```shell
-pip install -r requirements.txt
-python databricks.py \
-    --db-workspace my-workspace-url \
-    --db-token my-workspace-token \
-    --model-name my-model-name \
+uv run mrm-generate \
+    --model-name catalog.schema.model \
     --model-version my-model-version \
-    --output my-model-output.pdf
+    --output my-model-output.pdf \
+    --db-workspace XXXX \
+    --db-token XXXX
 ```
+
+Authentication is resolved by the Databricks SDK from environment variables
+(`DATABRICKS_HOST` / `DATABRICKS_TOKEN`), a config profile (`--db-profile`, from
+`~/.databrickscfg`), or explicit `--db-workspace` / `--db-token` flags.
 
 ## Template documentation
 

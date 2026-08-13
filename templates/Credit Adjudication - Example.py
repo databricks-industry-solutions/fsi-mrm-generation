@@ -1,14 +1,12 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "5"
+# ///
 # MAGIC %md
 # MAGIC # Credit Risk Adjudication Model
 # MAGIC
 # MAGIC This notebook is a simple example of how organisations could standardize their approach to AI by defining a series of steps that any data science team ought to address prior to a model validation. Although not exhaustive, this shows that most of the questions required by IVU process could be addressed upfront (at model development phase) to reduce the friction between regulatory imposed silos, increase model validation success rate and drammatically reduce time from exploration to productionization of AI use cases. 
-# MAGIC
-# MAGIC <br>
-# MAGIC
-# MAGIC <a href="https://www.ey.com/en_ca" target="_blank">
-# MAGIC   <img src='https://assets.ey.com/content/dam/ey-sites/ey-com/en_gl/generic/logos/20170526-EY-Digital-Brand.svg' width=100> 
-# MAGIC </a>
 
 # COMMAND ----------
 
@@ -346,6 +344,13 @@ describe_data_df
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC #### WoE utility library
+# MAGIC
+# MAGIC The WoE (Weight of Evidence) utility library is loaded to provide specialized functions for calculating Weight of Evidence and Information Value, which are essential for variable selection and binning in credit risk modeling. This library contains reusable code for transforming categorical and continuous variables, computing WoE values, and evaluating predictive power, which are common tasks in risk analytics. The WoE utility is maintained as a separate third-party file rather than being included inline because it is a comprehensive and lengthy module, designed for modularity and reuse across multiple projects and notebooks while leveraging robust, tested WoE functions.
+
+# COMMAND ----------
+
 # MAGIC %run ./utils/woe
 
 # COMMAND ----------
@@ -370,9 +375,18 @@ def woe_discrete(df, cat_variabe_name, y_df):
 
 # COMMAND ----------
 
- for i in df_credit.columns:
-  if i not in ['RISK', 'RISK_EN']:
-    univariate_sc_plot(df_credit,i,'RISK_EN', n_cuts=3)
+import sys
+_orig_limit = sys.getrecursionlimit()
+sys.setrecursionlimit(300)
+
+for i in df_credit.columns:
+    if i not in ['RISK', 'RISK_EN']:
+        try:
+            univariate_sc_plot(df_credit, i, 'RISK_EN', n_cuts=3)
+        except RecursionError:
+            print(f"Skipping '{i}': numpy/pandas ufunc dispatch incompatibility")
+
+sys.setrecursionlimit(_orig_limit)
 
 # COMMAND ----------
 
@@ -390,12 +404,12 @@ df_credit["AGE_CAT"] = pd.cut(df_credit['AGE'], interval, labels=cats)
 df_credit['SAVING_ACCOUNT'] = df_credit['SAVING_ACCOUNT'].fillna('no_inf')
 df_credit['CHECKING_ACCOUNT'] = df_credit['CHECKING_ACCOUNT'].fillna('no_inf')
 
-df_credit = df_credit.merge(pd.get_dummies(df_credit['PURPOSE'], drop_first=True, prefix='PURPOSE'), left_index=True, right_index=True)
-df_credit = df_credit.merge(pd.get_dummies(df_credit['SEX'], drop_first=True, prefix='SEX'), left_index=True, right_index=True)
-df_credit = df_credit.merge(pd.get_dummies(df_credit['HOUSING'], drop_first=True, prefix='HOUSING'), left_index=True, right_index=True)
-df_credit = df_credit.merge(pd.get_dummies(df_credit['SAVING_ACCOUNT'], drop_first=True, prefix='SAVING'), left_index=True, right_index=True)
-df_credit = df_credit.merge(pd.get_dummies(df_credit["CHECKING_ACCOUNT"], drop_first=True, prefix='CHECK'), left_index=True, right_index=True)
-df_credit = df_credit.merge(pd.get_dummies(df_credit["AGE_CAT"], drop_first=True, prefix='AGE_CAT'), left_index=True, right_index=True)
+df_credit = df_credit.merge(pd.get_dummies(df_credit['PURPOSE'], drop_first=True, dtype=int, prefix='PURPOSE'), left_index=True, right_index=True)
+df_credit = df_credit.merge(pd.get_dummies(df_credit['SEX'], drop_first=True, dtype=int, prefix='SEX'), left_index=True, right_index=True)
+df_credit = df_credit.merge(pd.get_dummies(df_credit['HOUSING'], drop_first=True, dtype=int, prefix='HOUSING'), left_index=True, right_index=True)
+df_credit = df_credit.merge(pd.get_dummies(df_credit['SAVING_ACCOUNT'], drop_first=True, dtype=int, prefix='SAVING'), left_index=True, right_index=True)
+df_credit = df_credit.merge(pd.get_dummies(df_credit["CHECKING_ACCOUNT"], drop_first=True, dtype=int, prefix='CHECK'), left_index=True, right_index=True)
+df_credit = df_credit.merge(pd.get_dummies(df_credit["AGE_CAT"], drop_first=True, dtype=int, prefix='AGE_CAT'), left_index=True, right_index=True)
 
 # excluding the missing columns
 del df_credit["SAVING_ACCOUNT"]
@@ -441,14 +455,6 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.25, rand
 
 # COMMAND ----------
 
-# broadcast our dataset to be used by our executors
-X_train_broadcast = sc.broadcast(X_train)
-X_test_broadcast = sc.broadcast(X_test)
-y_train_broadcast = sc.broadcast(y_train)
-y_test_broadcast = sc.broadcast(y_test)
-
-# COMMAND ----------
-
 # we delegate hyperparameter tuning and model selection to hyperopt, distributing that process
 # across multiple spark executors
 
@@ -476,21 +482,31 @@ space = hp.choice('classifiers', [
 # COMMAND ----------
 
 # We define our objective function whose loss we have to minimize
+# Each trial is logged as a nested MLflow run (replicating SparkTrials behavior)
 def objective(args):
-    # Initialize our model pipeline
-    pipeline = Pipeline(steps=[('model', args['model'])])
-    pipeline.set_params(**args['params'])
-    score = cross_val_score(pipeline, X_train_broadcast.value, y_train_broadcast.value, cv=10, n_jobs=-1, error_score=0.99)
-    return {'loss': 1 - np.median(score), 'status': STATUS_OK}
+    with mlflow.start_run(nested=True):
+        # Initialize our model pipeline
+        pipeline = Pipeline(steps=[('model', args['model'])])
+        pipeline.set_params(**args['params'])
+        score = cross_val_score(pipeline, X_train, y_train, cv=10, n_jobs=-1, error_score=0.99)
+        loss = 1 - np.median(score)
+        mlflow.log_params(args['params'])
+        mlflow.set_tag('model_type', type(args['model']).__name__)
+        mlflow.log_metric('median_cv_score', np.median(score))
+        mlflow.log_metric('loss', loss)
+        return {'loss': loss, 'status': STATUS_OK}
 
 # COMMAND ----------
 
 max_evals=50
 
+import os
+os.environ["MLFLOW_ENABLE_DB_SDK"] = "false"
+
 with mlflow.start_run(run_name='credit adjudication select', nested=True):
   
-  # Hyperopts SparkTrials() records all the model and run artifacts.
-  trials = SparkTrials(parallelism=20)
+  # Using Trials() for serverless compatibility (SparkTrials requires SparkContext)
+  trials = Trials()
 
   # Fmin will call the objective function with selective param set. 
   # The choice of algorithm will narrow the searchspace.
@@ -504,6 +520,9 @@ with mlflow.start_run(run_name='credit adjudication select', nested=True):
 
   best_params = space_eval(space, best_classifier)
 
+# Clean up: remove the env override now that hyperopt trials are done
+os.environ.pop("MLFLOW_ENABLE_DB_SDK", None)
+
 # COMMAND ----------
 
 best_model = best_params['model']
@@ -511,39 +530,55 @@ displayHTML("<p>Best model is [{}]</p>".format(type(best_model).__name__))
 
 # COMMAND ----------
 
-# unpersist our datasets now that we trained best model
-X_train_broadcast.unpersist(blocking = False)
-X_test_broadcast.unpersist(blocking = False)
-y_train_broadcast.unpersist(blocking = False)
-y_test_broadcast.unpersist(blocking = False)
+# Best model selected from hyperopt search
+print(f"Best model type: {type(best_params['model']).__name__}")
+print(f"Best params: {best_params['params']}")
 
 # COMMAND ----------
 
+# DBTITLE 1,Train model with MLflow autolog
 description = """A 10 fold cross-validation procedure was used to select the best model and hyperparameters across multiple techniques.
 Our model selection included XGBoost and K nearest neighbors and selected {} as best fit.
 This run was evaluated as our best run that maximizes `cross_val_score`.
 """.format(type(best_model).__name__)
+
+# Enable MLflow autolog — captures model parameters, artifact, and feature importances
+# on .fit(). For classification metrics and evaluation artifacts (confusion matrix,
+# ROC curve), we use mlflow.evaluate().
+mlflow.autolog(
+    log_datasets=True,
+    log_models=True,
+    log_input_examples=True,
+    log_model_signatures=True,
+)
 
 with mlflow.start_run(run_name='credit adjudication', description=description) as run:
 
   # retrieve mlflow run Id
   run_id = run.info.run_id
 
-  # Log model name
+  # Custom tags still require manual logging (not covered by autolog)
   mlflow.set_tag('Model name', type(best_model).__name__)
   mlflow.set_tag('Model complexity', 'MEDIUM')
   mlflow.set_tag('Model explainability', 'MEDIUM')
 
-  # Log model parameters
-  mlflow.log_params(best_model.get_params())
+  # Train the model — autolog captures parameters, model artifact, signature, and
+  # feature importances. eval_set enables per-round validation metric tracking.
+  model = best_model.fit(X_train, y_train, eval_set=[(X_test, y_test)])
 
-  # Train and log our final model
-  signature = infer_signature(X_test, y_test)
-  model = best_model.fit(X_train, y_train)
-  mlflow.sklearn.log_model(model, 'model', signature=signature)
+  # Evaluate the model on the test set — logs classification metrics (accuracy, F1,
+  # precision, recall, ROC-AUC, log_loss) and artifacts (confusion matrix, ROC curve,
+  # precision-recall curve) to the run.
+  eval_df = X_test.copy()
+  eval_df['RISK_EN'] = y_test.values
+  mlflow.evaluate(
+      model=f"runs:/{run_id}/model",
+      data=eval_df,
+      targets='RISK_EN',
+      model_type='classifier',
+  )
 
-  # Log dataset used for lineage
-  # See https://mlflow.org/docs/latest/python_api/mlflow.html?highlight=log_input#mlflow.log_input
+  # Log dataset used for lineage (Unity Catalog table tracking)
   mlflow.log_input(mlflow_dataset, context='training')
 
 # COMMAND ----------
@@ -573,14 +608,15 @@ def get_confusion_matrix(model):
 
 # COMMAND ----------
 
+# DBTITLE 1,Display confusion matrix (autolog handles artifact logging)
 # create MLFlow client to update our experiment with additional metrics / graphs
 client = mlflow.tracking.MlflowClient()
 
-# plot confusion matrix for best model
-get_confusion_matrix(model)
+# Disable autolog for validation cells below — cross-validation fits used for
+# display/documentation should not create spurious experiment runs.
+mlflow.autolog(disable=True)
 
-# equally store the same alongside MLFlow experiment for audit purpose
-client.log_artifact(run_id, '/tmp/mrmgen_matrix.png', 'images')
+get_confusion_matrix(model)
 
 # COMMAND ----------
 
@@ -607,31 +643,39 @@ client.log_artifact(run_id, '/tmp/mrmgen_matrix.png', 'images')
 
 # COMMAND ----------
 
+# DBTITLE 1,Cell 68
 # MAGIC %md
 # MAGIC #### 4.2.1 Accuracy Ratio Test
 # MAGIC
 # MAGIC To better assess the models’ performance, different accuracy tests including, the accuracy ratio, the precision test, the recall test and the F1 test were performed. Results of these tests are showed in the following tables.
+# MAGIC
+# MAGIC Training metrics (accuracy, F1, precision, recall, ROC-AUC, log_loss) are captured automatically via `mlflow.autolog()` and `mlflow.evaluate()`. The cross-validation metrics below provide a supplementary 10-fold CV estimate as additional validation evidence.
 
 # COMMAND ----------
 
+# DBTITLE 1,Supplementary CV metrics (autolog handles training metrics)
+# 10-fold CV provides an unbiased generalization estimate beyond the training metrics
+# already captured by autolog and mlflow.evaluate().
 def get_accuracy_ratio(model):
     cv_accuracy = cross_val_score(model, X_train, y_train, cv=kfold, scoring='accuracy').mean()
     cv_precision = cross_val_score(model, X_train, y_train, cv=kfold, scoring='precision').mean()
     cv_recall = cross_val_score(model, X_train, y_train, cv=kfold, scoring='recall').mean()
     cv_f1 = cross_val_score(model, X_train, y_train, cv=kfold, scoring='f1').mean()
+    cv_roc_auc = cross_val_score(model, X_train, y_train, cv=kfold, scoring='roc_auc').mean()
     return {
       'cv_accuracy': cv_accuracy,
       'cv_precision': cv_precision,
       'cv_recall': cv_recall,
-      'cv_f1': cv_f1
+      'cv_f1': cv_f1,
+      'cv_roc_auc': cv_roc_auc,
     }
 
 # COMMAND ----------
 
+# DBTITLE 1,Display supplementary CV metrics
+# Supplementary 10-fold CV metrics for model documentation evidence.
 metrics = get_accuracy_ratio(model)
-for metric in metrics.keys():
-  # log metrics on MLFlow experiment
-  client.log_metric(run_id, metric, metrics[metric])
+pd.DataFrame([metrics], index=['10-fold CV']).T
 
 # COMMAND ----------
 
@@ -653,10 +697,10 @@ def get_kolmogorov():
 
 # COMMAND ----------
 
+# DBTITLE 1,Display KS test results
+# KS test results for model documentation (custom statistical tests beyond autolog).
 metrics = get_kolmogorov()
-for metric in metrics.keys():
-  # log metrics on MLFlow experiment
-  client.log_metric(run_id, metric, metrics[metric])
+pd.DataFrame([metrics], index=['KS Test']).T
 
 # COMMAND ----------
 
@@ -815,7 +859,7 @@ client.set_model_version_tag(name=model_fqdn, version=model_version, key='model_
 
 # COMMAND ----------
 
-model_registered_description="""Co-developped with EY, This model is a simple example of how organisations could standardize their approach to AI by defining a series of steps that any data science team ought to address prior to a model validation. Although not exhaustive, this shows that most of the questions required by IVU process for a given use case (Credit adjudication) could be addressed upfront to reduce the friction between regulatory imposed silos, increase model validation success rate and drammatically reduce time from exploration to productionization of AI use cases."""
+model_registered_description="""This model is a simple example of how organisations could standardize their approach to AI by defining a series of steps that any data science team ought to address prior to a model validation. Although not exhaustive, this shows that most of the questions required by IVU process for a given use case (Credit adjudication) could be addressed upfront to reduce the friction between regulatory imposed silos, increase model validation success rate and drammatically reduce time from exploration to productionization of AI use cases."""
 
 # Update parent model description (done for the purpose of demo, should have been set upfront)
 client.update_registered_model(name=model_fqdn, description=model_registered_description)
@@ -827,31 +871,6 @@ client.set_registered_model_tag(name=model_fqdn, key='model_review', value='REQU
 # COMMAND ----------
 
 client.set_registered_model_alias(name=model_fqdn, version=model_version, alias='production')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC Upon completion of this notebook, one can run utility library as follows and get the resulting [PDF](https://github.com/databricks-industry-solutions/fsi-mrm-generation/blob/main/templates/Credit%20Adjudication%20-%20Output.pdf) document
-# MAGIC
-# MAGIC ```
-# MAGIC pip install -r requirements.txt
-# MAGIC python databricks.py \
-# MAGIC     --db-workspace my-workspace-url \
-# MAGIC     --db-token my-workspace-token \
-# MAGIC     --model-name my-model-name \
-# MAGIC     --model-version my-model-version \
-# MAGIC     --output my-model-output.pdf
-# MAGIC ```
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC <div style="text-align: center; margin-top: 30px;">
-# MAGIC     <img src='https://assets.ey.com/content/dam/ey-sites/ey-com/en_gl/generic/logos/20170526-EY-Digital-Brand.svg' alt="Logo" height="100px">
-# MAGIC     <br>
-# MAGIC     <br>
-# MAGIC     <em>Disclaimer: The views and opinions expressed in this blog are those of the authors and do not necessarily reflect the policy or position of EY.</em>
-# MAGIC </div>
 
 # COMMAND ----------
 
