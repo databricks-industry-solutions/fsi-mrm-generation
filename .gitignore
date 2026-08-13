@@ -24,7 +24,6 @@ venv
 .isaac
 CLAUDE.md
 skills
-uv.lock
 .python-version
 .databricks
 .claude

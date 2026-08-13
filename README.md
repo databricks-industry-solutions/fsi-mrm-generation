@@ -76,15 +76,9 @@ Authentication is resolved by the Databricks SDK from environment variables
 
 This utility library provides a technical foundation and framework to automatically 
 generate the document and represents one side of the coin. The other side relates to the 
-design, the structure and the content of the document that relates to the model in scope. 
-With subject matter expertise supporting several model frameworks, regulator guidelines and 
-custom needs of many FS institutions, the 
-[MRM suite](https://www.ey.com/en_gl/financial-services/model-management-platform)
-from EY provides proven model documentation templates corresponding to business domains 
-in the financial services industry.
-
+design, the structure and the content of the document that relates to the model in scope.
 See an example of [template](templates/Credit%20Adjudication%20-%20MRM%20Model%20Documentation%20-%20Template.ipynb) 
-document for Credit Risk Adjudication use case. Available as a Ipython notebook file, hence easily
+document for Credit Risk Adjudication use case. Available as a notebook file, hence easily
 accessible through Databricks environment, this template provides the necessary placemat through 
 markdown comments to generate the documentation required for Model Risk Management.
 
