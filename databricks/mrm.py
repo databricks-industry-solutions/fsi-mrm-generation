@@ -1,6 +1,6 @@
 import logging
 
-import requests
+from databricks.sdk import WorkspaceClient
 
 from databricks.mrm_objects import *
 from databricks.mrm_utils import *
@@ -13,26 +13,31 @@ a_little_bit_of_space = '<div class="col-xs-12" style="height:70px;"></div>'
 
 class ModelRiskApi:
 
-    def __init__(self, base_url, api_token):
+    def __init__(self, client: WorkspaceClient):
+        """
+        Initialize ModelRiskApi with a Databricks SDK WorkspaceClient.
+        The SDK handles authentication automatically via environment variables,
+        config profiles, managed identity, OAuth, or service principals.
+        This replaces the legacy pattern of passing raw workspace URL and PAT token.
+        :param client: An authenticated WorkspaceClient instance from databricks-sdk
+        """
+        self.client = client
 
-        self.base_url = base_url
-        self.headers = {'Authorization': f'Bearer {api_token}'}
-
-    def __submit_api_call(self, url):
+    def __submit_api_call(self, path, query=None):
+        """
+        Submit an authenticated API call via the Databricks SDK's API client.
+        The SDK handles token refresh, OAuth flows, and retry logic automatically.
+        :param path: The API path (e.g., '/api/2.0/mlflow/runs/get')
+        :param query: Optional dict of query parameters
+        :return: Parsed JSON response as dict
+        """
         try:
-            response = requests.get(url=url, headers=self.headers)
-            response.raise_for_status()  # this will raise an error if the request failed
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request to {url} failed: {e}")
+            data = self.client.api_client.do('GET', path, query=query)
+        except Exception as e:
+            logger.error(f"Request to {path} failed: {e}")
             raise
 
-        try:
-            data = response.json()  # this will raise an error if the response isn't valid JSON
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to decode JSON from response: {e}")
-            raise
-
-        if 'error_code' in data:
+        if isinstance(data, dict) and 'error_code' in data:
             raise Exception(f"Error while retrieving content, [{data}]")
         return data
 
@@ -451,14 +456,17 @@ class ModelRiskApi:
         :return:
         """
         logger.info(f'Retrieving version [{model_version}] for model [{model_name}]')
-        url = f'{self.base_url}/api/2.0/mlflow/unity-catalog/model-versions/get?name={model_name}&version={model_version}'
-        data = self.__submit_api_call(url)
+        data = self.__submit_api_call(
+            '/api/2.0/mlflow/unity-catalog/model-versions/get',
+            query={'name': model_name, 'version': str(model_version)}
+        )
         return self.__process_model_version(data, model_version)
 
     def __get_model_versions(self, model_name, model_parent_aliases):
         logger.info(f'Retrieving versions for model [{model_name}]')
-        url = f'{self.base_url}/api/2.1/unity-catalog/models/{model_name}/versions'
-        data = self.__submit_api_call(url)
+        data = self.__submit_api_call(
+            f'/api/2.1/unity-catalog/models/{model_name}/versions'
+        )
         return self.__process_model_versions(data, model_name, model_parent_aliases)
 
     def __get_model_parent(self, model_name):
@@ -470,8 +478,10 @@ class ModelRiskApi:
         :return: The business context surrounding our model, as captured by MLFlow directly or filled by end user.
         """
         logger.info(f'Retrieving model [{model_name}]')
-        url = f'{self.base_url}/api/2.0/mlflow/unity-catalog/registered-models/get?name={model_name}'
-        data = self.__submit_api_call(url)
+        data = self.__submit_api_call(
+            '/api/2.0/mlflow/unity-catalog/registered-models/get',
+            query={'name': model_name}
+        )
         return self.__process_model_parent(data)
 
     def __get_model_run(self, run_id):
@@ -482,26 +492,31 @@ class ModelRiskApi:
         :return: the technical context surrounding a given model, returned as wrapped class for HTML output
         """
         logger.info(f'Retrieving run_id [{run_id}] associated to model')
-        url = f'{self.base_url}/api/2.0/mlflow/runs/get?run_id={run_id}'
-        data = self.__submit_api_call(url)
+        data = self.__submit_api_call(
+            '/api/2.0/mlflow/runs/get',
+            query={'run_id': run_id}
+        )
         return self.__process_model_run(data, run_id)
 
     def __get_lineage_rec(self, upstream_source, upstream_type):
         """
-        Querying the UC API, we retrieve all data lineage for each data source captured on MLFlow experiment. This
-        requires call that same API recursively to fetch all upstream dependencies.
+        Querying the Unity Catalog lineage API via the Databricks SDK, we retrieve all data lineage for each data
+        source captured by MLFlow experiment. This requires calling the same API recursively to fetch all upstream
+        dependencies. The SDK handles authentication and retry logic.
         :param upstream_source: the name of the data source to fetch from table API, in the form of 3 layer namespace
         :param upstream_type: the type of the data source to fetch from table API, in the form of 3 layer namespace
         :return: the entire upstream lineage wrapped as a class for HTML output
         """
         children = []
-        url = f'{self.base_url}/api/2.0/lineage-tracking/table-lineage?table_name={upstream_source}'
-        if upstream_type == 'delta':
-            response = json.loads(requests.get(url=url, headers=self.headers).text)
-            if 'error_code' in response:
-                logger.error(f"Error in lineage response, {response['message']}")
-            else:
+        if upstream_type in ('delta', 'delta_table'):
+            try:
+                response = self.__submit_api_call(
+                    '/api/2.0/lineage-tracking/table-lineage',
+                    query={'table_name': upstream_source}
+                )
                 children = self.__process_lineage(response)
+            except Exception as e:
+                logger.error(f"Error in lineage response for {upstream_source}: {e}")
         return LineageDataSource(upstream_source, upstream_type, children)
 
     def __get_lineage(self, data_source_names, model_name):
@@ -521,10 +536,16 @@ class ModelRiskApi:
         :return: the notebook content returned as encoded base 64
         """
         run_id = job_id.split('/')[-1]
-        url = f'{self.base_url}/api/2.1/jobs/runs/export?run_id={run_id}&views_to_export=CODE'
-        response = json.loads(requests.get(url=url, headers=self.headers).text)
-        if 'error_code' in response:
-            logger.error(f"Error in job response, {response['message']}")
+        try:
+            response = self.__submit_api_call(
+                '/api/2.1/jobs/runs/export',
+                query={'run_id': run_id, 'views_to_export': 'CODE'}
+            )
+        except Exception as e:
+            logger.error(f"Error in job response: {e}")
+            return None
+        if 'views' not in response:
+            logger.error(f"Could not find any output content for job [{job_id}]")
             return None
         content = list(filter(lambda x: x['type'] == 'NOTEBOOK', response['views']))
         if len(content) > 0:
@@ -541,10 +562,16 @@ class ModelRiskApi:
         :return: the notebook content returned as encoded base 64
         """
         logger.info(f'Retrieving notebook [{remote_path}] associated to model run')
-        url = f'{self.base_url}/api/2.0/workspace/export?path={remote_path}&format=HTML&direct_download=False'
-        response = json.loads(requests.get(url=url, headers=self.headers).text)
-        if 'error_code' in response:
-            logger.error(f"Error in notebook response, {response['message']}")
+        try:
+            response = self.__submit_api_call(
+                '/api/2.0/workspace/export',
+                query={'path': remote_path, 'format': 'HTML', 'direct_download': 'false'}
+            )
+        except Exception as e:
+            logger.error(f"Error in notebook response: {e}")
+            return None
+        if 'content' not in response:
+            logger.error(f"Error in notebook response, no content returned")
             return None
         html_org_content = str(base64.b64decode(response['content']), 'utf-8')
         return self.__extract_notebook(html_org_content)
