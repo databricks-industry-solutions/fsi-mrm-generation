@@ -1,3 +1,66 @@
+/* Slightly smaller base font than Bootstrap's 16px; scales headings (rem) too. */
+html {
+  font-size: 14px;
+}
+
+@page {
+  size: A4;
+  margin: 1in;
+  @top-left {
+    content: element(pageHeader);
+  }
+  @bottom-left {
+    content: '© 2026 databricks';
+    font-family: 'DM Sans';
+    font-size: 9px;
+    color: #6c757d;
+  }
+}
+
+/* Pulled out of the normal flow and repeated in the top page margin */
+#page-header {
+  position: running(pageHeader);
+}
+
+/* Bootstrap 4's print stylesheet forces `body`/`.container` to min-width:992px
+   (a screen assumption), which spills far past the A4 right margin. Undo it and
+   pin the container to the printable width. */
+body,
+.container {
+  min-width: 0 !important;
+}
+
+.container {
+  width: auto;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Grey callout boxes: small inner gap so text/images don't touch the edges.
+   Declared after .container so it wins for `.container.jumbotron` elements. */
+.jumbotron {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+/* Keep content images (e.g. matplotlib plots) within the printable width so
+   they are never clipped by the right page edge. Capped in absolute units to fit
+   inside the padded grey box within the A4 content area; a percentage would
+   resolve against Bootstrap's .container, which overflows under WeasyPrint. */
+img {
+  max-width: 5.75in;
+  height: auto;
+}
+
+/* Constrain the logo in the running header (CSS overrides the img width attr) */
+#page-header img {
+  width: 110px;
+  height: auto;
+}
+
 .section-break {
   page-break-before:always
 }

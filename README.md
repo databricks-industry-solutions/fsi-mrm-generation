@@ -42,7 +42,16 @@ and installs all dependencies from `pyproject.toml`:
 
 ```bash
 uv sync
-./install-binaries-macos.sh   # one-time: native binaries (macOS)
+./install-binaries-macos.sh   # one-time: native libraries (macOS)
+```
+
+On macOS, WeasyPrint's rendering libraries live under Homebrew's prefix, which
+the uv-managed Python does not search by default. The `mrm-generate` CLI adds it
+automatically. If you instead import `databricks.mrm_utils` directly (e.g. from a
+notebook or script), export the path first:
+
+```bash
+export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
 ```
 
 ### Command line
@@ -90,7 +99,7 @@ set forth below.
 | PyYAML                           | Yaml parser         | MIT     | https://pypi.org/project/PyYAML/           |
 | mdtex2html                       | Markdown parser     | MIT     | https://pypi.org/project/mdtex2html/        |
 | graphviz                         | Graph visualization | MIT     | https://pypi.org/project/graphviz/         |
-| pdfkit                           | html to pdf         | MIT     | https://pypi.org/project/pdfkit/           |
+| weasyprint                       | html to pdf         | BSD     | https://pypi.org/project/weasyprint/       |
 
 
 

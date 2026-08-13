@@ -82,25 +82,9 @@ model_metrics:
 
 model_dependencies:
   header: "Model dependencies"
-  info: "This section will retrieve all technical context surrounding the development of the model, the data set used,
-    the input and output features, as well as infrastructure requirements and external libraries. This section will
-    ensure model output can be reproduced under same conditions."
-
-model_dependencies_infra:
-  header: "Infrastructure dependency"
-  info: "This section will programmatically retrieve the specification of the infrastructure used for the creation of 
-    the model. What environment was created, how many nodes were leveraged for distributed computing, what databricks 
-    runtime was used. We highly encourage users to leverage LTS versions of our runtimes."
-  error: "Could not find any associated cluster."
-
-model_dependencies_libraries:
-  header: "Libraries dependencies"
-  info: "Beside the cluster and infrastructure used for the creation of the model, specific libraries (open source or 
-    proprietary) may have been leveraged. This section will report all external dependencies (maven, pypi, custom 
-    packages) and their respective versions. We highly encourage users to install libraries at an infrastructure level
-    rather than at a notebook level to ensure each library is properly tracked and reported here."
-  error: "Could not find any associated libraries. Make sure dependencies are captured and installed as a cluster 
-    level (linked to an infrastructure rather than a notebook)."
+  info: "This section will retrieve the technical context surrounding the development of the model, including the data
+    sets used and the input and output features. This section will ensure model output can be reproduced under same
+    conditions."
 
 model_signature:
   header: "Input and output signatures"

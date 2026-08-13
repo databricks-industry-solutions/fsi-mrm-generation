@@ -1,10 +1,33 @@
 import argparse
 import logging
+import os
 import sys
 
+from databricks.mrm import ModelRiskApi
 from databricks.sdk import WorkspaceClient
 
-from databricks.mrm import ModelRiskApi
+
+def _ensure_native_lib_path():
+    """Make WeasyPrint's native libraries loadable on macOS.
+
+    WeasyPrint loads Pango/GLib/GDK-PixBuf via ``dlopen``. On macOS those live
+    under Homebrew's prefix, which the dynamic loader does not search by default,
+    and the ``DYLD_*`` variables that would add it are only read at process
+    launch. If Homebrew's lib dir is missing from the search path, add it and
+    re-exec this process once so the libraries resolve without the user having to
+    export anything. No-op on non-macOS platforms and when already configured.
+    """
+    if sys.platform != 'darwin':
+        return
+    lib_dirs = [d for d in ('/opt/homebrew/lib', '/usr/local/lib') if os.path.isdir(d)]
+    if not lib_dirs:
+        return
+    search = os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '')
+    parts = search.split(os.pathsep) if search else []
+    if all(d in parts for d in lib_dirs):
+        return  # already on the search path — avoids a re-exec loop
+    os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = os.pathsep.join(lib_dirs + parts)
+    os.execv(sys.executable, [sys.executable, *sys.argv])
 
 
 def _configure_logging():
@@ -16,6 +39,13 @@ def _configure_logging():
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     root.addHandler(handler)
+
+    # WeasyPrint emits a large volume of INFO progress lines and benign CSS
+    # warnings (unsupported Bootstrap vendor rules, media queries, etc.). Keep
+    # only genuine errors so they don't drown out our own output.
+    logging.getLogger('weasyprint').setLevel(logging.ERROR)
+    logging.getLogger('fontTools').setLevel(logging.ERROR)
+
     return logging.getLogger('databricks')
 
 
@@ -34,6 +64,7 @@ def _parse_args(argv=None):
 
 
 def main(argv=None):
+    _ensure_native_lib_path()
     logger = _configure_logging()
     args = _parse_args(argv)
 

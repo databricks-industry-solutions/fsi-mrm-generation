@@ -42,57 +42,6 @@ class ModelRiskApi:
         return data
 
     @staticmethod
-    def __extract_run_libraries(run_tags):
-        """
-        Extracting the list of libraries captured with mlflow experiment.
-        Note that MLFlow will struggle to capture notebook scoped libraries (using %pip install).
-        We highly recommend the use of cluster scope libraries for heightened governance
-        :param run_tags: The list of key /value tags captured by MLFlow
-        :return: The list of libraries
-        """
-        libraries_objects = []
-        if 'mlflow.databricks.cluster.libraries' in run_tags:
-            libraries = json.loads(run_tags['mlflow.databricks.cluster.libraries'])
-            for installable in libraries['installable']:
-                library_type = list(installable.keys())[0]
-                library_coord = installable[library_type]
-                if library_type == 'maven':
-                    library_coord = library_coord['coordinates']
-                    libraries_objects.append(Library('maven', library_coord))
-            for redacted in libraries['redacted']:
-                library_type = list(redacted.keys())[0]
-                library_coord = redacted[library_type]
-                if library_type == 'maven':
-                    library_coord = library_coord['coordinates']
-                    libraries_objects.append(Library('maven', library_coord))
-        return Libraries(libraries_objects)
-
-    @staticmethod
-    def __extract_run_cluster(run_tags):
-        """
-        Extracting cluster information as captured by MLFlow. This tag (stored as JSON string) seems to capture
-        all information required without the need to pull additional information from cluster API.
-        :param run_tags: The list of key /value tags captured by MLFlow
-        :return: cluster information such as name, DBR and instance type
-        """
-        cluster_info = run_tags.get('mlflow.databricks.cluster.info') or None
-        if cluster_info:
-            cluster_info = json.loads(cluster_info)
-            autoscale = cluster_info.get('autoscale') or None
-            if autoscale:
-                num_workers = f'{autoscale.get("min_workers")}-{autoscale.get("max_workers")}'
-            else:
-                num_workers = cluster_info.get('autoscale') or None
-            return ExperimentCluster(
-                cluster_info.get('cluster_name') or None,
-                cluster_info.get('spark_version') or None,
-                cluster_info.get('node_type_id') or None,
-                num_workers
-            )
-        else:
-            return None
-
-    @staticmethod
     def __extract_run_data_sources(run_object, run_tags):
         """
         Simply extract all data sources captured by MLFlow. Data sources are captured as comma separated entries.
@@ -391,9 +340,7 @@ class ModelRiskApi:
         run_workspace = run_tags.get('mlflow.databricks.workspaceURL') or None
 
         run_data_sources = self.__extract_run_data_sources(run_object, run_tags)
-        run_cluster = self.__extract_run_cluster(run_tags)
         run_artifacts = self.__extract_run_artifacts(run_tags, run_object)
-        run_libraries = self.__extract_run_libraries(run_tags)
 
         if run_description:
             run_description = ExperimentDescription(run_description)
@@ -455,9 +402,7 @@ class ModelRiskApi:
             source_url,
             source_commit,
             source_code,
-            run_cluster,
-            run_artifacts,
-            run_libraries
+            run_artifacts
         )
 
     @staticmethod
@@ -874,47 +819,6 @@ class ModelRiskApi:
             f'<p>{verbatim["model_dependencies"]["info"]}</p>',
             '</div>'
         ])
-
-        ##########################################################################################
-        # MODEL INFRASTRUCTURE SECTION
-        # We report infrastructure dependency of our model
-        ##########################################################################################
-
-        html.extend([
-            '<div class="section section-content">',
-            f'<h2>{verbatim["model_dependencies_infra"]["header"]}</h2>',
-            f'<p>{verbatim["model_dependencies_infra"]["info"]}</p>',
-            '</div>'
-        ])
-        if model_run and model_run.run_cluster:
-            html.extend(model_run.run_cluster.to_html(h_level=2))
-        else:
-            html.extend([
-                '<div class="alert alert-warning section-content" role="alert">',
-                f'<p>{verbatim["model_dependencies_infra"]["info"]}</p>'
-                '</div>'
-            ])
-
-        ##########################################################################################
-        # MODEL LIBRARY SECTION
-        # We report all libraries logged alongside our model
-        ##########################################################################################
-
-        html.extend([
-            '<div class="section section-content">',
-            f'<h2>{verbatim["model_dependencies_libraries"]["header"]}</h2>',
-            f'<p>{verbatim["model_dependencies_libraries"]["info"]}</p>',
-            '</div>'
-        ])
-
-        if model_run and model_run.run_libraries and model_run.run_libraries.non_empty():
-            html.extend(model_run.run_libraries.to_html(h_level=2))
-        else:
-            html.extend([
-                '<div class="alert alert-warning section-content" role="alert">',
-                f'<p>{verbatim["model_dependencies_libraries"]["error"]}</p>'
-                '</div>'
-            ])
 
         ##########################################################################################
         # MODEL SIGNATURE SECTION

@@ -6,7 +6,6 @@ import shutil
 import tempfile
 
 import mdtex2html
-import pdfkit
 import yaml
 
 from . import tmpl
@@ -56,11 +55,16 @@ def generate_pdf(html_input, output_file):
     """
     Utility function that will convert raw HTML to glossy PDF. To do so, we load HTML template and relevant CSS file,
     copy all assets to a temporary folder and convert the whole as well defined PDF output. The latter will leverage
-    pdfkit library and its native binary (that needs to be installed)
+    the WeasyPrint library and its native rendering libraries (that need to be installed)
     :param html_input: input RAW HTML file for our model
     :param output_file: the output file to write PDF to
     :return: None
     """
+    # Imported lazily: WeasyPrint loads native libraries (Pango/GLib) at import
+    # time, so keeping this out of module scope lets the rest of the package
+    # import cleanly even where those libraries are not yet on the loader path.
+    from weasyprint import HTML
+
     # Create HTML file
     with pkg_resources.path(tmpl, 'mrm.html') as p:
         html_output = p.read_text().format(html_body='\n'.join(html_input))
@@ -73,32 +77,14 @@ def generate_pdf(html_input, output_file):
     with open(html_output_file, 'w') as f:
         f.write(html_output)
 
-    # Copy HTML assets
+    # Copy HTML assets so relative references (CSS, logo) resolve against the base URL
     asset_dir = os.path.join(temp_dir.name, 'assets')
     asset_src_dir = os.path.join(os.path.dirname(tmpl.__file__), 'assets')
     shutil.copytree(asset_src_dir, asset_dir)
 
-    # loading header file
-    with pkg_resources.path(tmpl, 'header.html') as f:
-        dst_header = os.path.join(os.getcwd(), f)
-
-    # loading footer file
-    with pkg_resources.path(tmpl, 'footer.html') as f:
-        dst_footer = os.path.join(os.getcwd(), f)
-
-    # formatting options
-    options = {
-        'enable-local-file-access': None,
-        '--header-html': 'file://{}'.format(dst_header),
-        '--footer-html': 'file://{}'.format(dst_footer),
-        'margin-top': '1in',
-        'margin-bottom': '1in',
-        'margin-right': '1in',
-        'margin-left': '1in'
-    }
-
-    # generate pdf
-    pdfkit.from_file(html_output_file, output_file, verbose=True, options=options)
+    # Generate PDF. Page margins, the running Databricks header and the copyright
+    # footer are all driven by the @page rules declared in assets/mrm.css.
+    HTML(filename=html_output_file).write_pdf(output_file)
 
 
 def image_to_html(data_entry):
