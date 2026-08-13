@@ -10,7 +10,6 @@ submitted new models as part of a model risk management practice. Using mlflow, 
 respective APIs, we aim at bringing both the technical and business context surrounding your model submission, reducing
 time to market and facilitating independent validation of financial and non-financial models.*
 
-[![DBR](https://img.shields.io/badge/DBR-11.3ML-red?logo=databricks&style=for-the-badge)](https://docs.databricks.com/release-notes/runtime/11.3ml.html)
 [![CLOUD](https://img.shields.io/badge/CLOUD-ALL-blue?logo=googlecloud&style=for-the-badge)](https://databricks.com/try-databricks)
 [![POC](https://img.shields.io/badge/POC-1_days-green?style=for-the-badge)](https://databricks.com/try-databricks)
 
@@ -40,25 +39,51 @@ mrm.generate_doc(
 See example [output](templates%2FCredit%20Adjudication%20-%20Output.pdf) for a given test model done using an existing solution 
 [accelerator](https://github.com/databricks-industry-solutions/value-at-risk). 
 
-Make sure to have both `wkhtmltopdf` and `graphviz` binary installed
+### Native binaries
+
+Beyond the Python dependencies, this project needs two **native binaries** that
+are *not* pip/uv installable — `graphviz` (provides `dot`, for diagrams) and
+`wkhtmltopdf` (used by `pdfkit` for HTML→PDF).
+
+- **On a Databricks cluster (Linux)**, run the cluster init script `init.sh`
+  (installs the `wkhtmltox` `.deb` and fonts), or:
+  ```bash
+  sudo apt-get install -y graphviz wkhtmltopdf
+  ```
+- **On macOS**, `graphviz` is a Homebrew formula but `wkhtmltopdf`'s formula/cask
+  was removed after the upstream project was archived. Run the bundled bootstrap,
+  which installs `graphviz` via Homebrew and `wkhtmltopdf` from its official
+  macOS `.pkg`:
+  ```bash
+  ./install-binaries-macos.sh
+  ```
+
+### Local development with uv
+
+This project uses [uv](https://docs.astral.sh/uv/). `uv sync` provisions the
+pinned Python (see `.python-version`), creates `.venv`, and installs all
+dependencies from `pyproject.toml`:
 
 ```bash
-sudo apt-get install -y graphviz wkhtmltopdf
+uv sync
+./install-binaries-macos.sh   # one-time: native binaries (macOS)
 ```
 
 ### Command line
 
-Should you need to run the same from a command line utility, please refer to `databricks.py`.
+Run the CLI via the `mrm-generate` console script (or the historical
+`python databricks.py` entry point):
 
 ```shell
-pip install -r requirements.txt
-python databricks.py \
-    --db-workspace my-workspace-url \
-    --db-token my-workspace-token \
-    --model-name my-model-name \
+uv run mrm-generate \
+    --model-name catalog.schema.model \
     --model-version my-model-version \
     --output my-model-output.pdf
 ```
+
+Authentication is resolved by the Databricks SDK from environment variables
+(`DATABRICKS_HOST` / `DATABRICKS_TOKEN`), a config profile (`--db-profile`, from
+`~/.databrickscfg`), or explicit `--db-workspace` / `--db-token` flags.
 
 ## Template documentation
 

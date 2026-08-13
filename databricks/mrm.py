@@ -185,36 +185,88 @@ class ModelRiskApi:
             logged_flavors.append(ArtifactFlavor(executor_type, executor_version))
         return logged_flavors
 
-    def __extract_run_artifacts(self, run_tags):
+    ARTIFACT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S.%f'
+
+    def __build_artifact(self, created, flavors, signature):
+        """
+        Assemble an Artifact from the raw flavors/signature documents, regardless of whether they were sourced from
+        the legacy `mlflow.log-model.history` run tag or the MLflow 3.x MLmodel artifact file. Both share the same
+        shape (a `utc_time_created` string, a `flavors` mapping and a `signature` with JSON-encoded inputs/outputs).
+        :param created: the model creation timestamp as a string (utc_time_created)
+        :param flavors: the mapping of logged flavors, or None
+        :param signature: the model signature dict with `inputs`/`outputs` JSON strings, or None
+        :return: an Artifact wrapping creation time, flavors and (optionally) the signature
+        """
+        created = datetime.datetime.strptime(created, self.ARTIFACT_TIME_FORMAT) if created else None
+        flavors = self.__extract_run_artifact_flavors(flavors) if flavors else []
+        if signature:
+            signature_input = self.__extract_run_artifact_signature(signature['inputs']) if signature.get('inputs') else []
+            signature_output = self.__extract_run_artifact_signature(signature['outputs']) if signature.get('outputs') else []
+            signature = ArtifactSignature(signature_input, signature_output)
+        else:
+            signature = None
+        return Artifact(created, flavors, signature)
+
+    def __get_logged_model_mlmodel(self, model_id):
+        """
+        MLflow 3.x logs a model's flavors, signature and interpreter versions into the `MLmodel` artifact file
+        attached to a LoggedModel rather than into the run's `mlflow.log-model.history` tag. We download and parse
+        that YAML document for the given logged model.
+        :param model_id: the LoggedModel id (e.g. `m-...`) referenced by the run outputs
+        :return: the parsed MLmodel document as a dict, or None if unavailable
+        """
+        logger.info(f'Retrieving MLmodel artifact for logged model [{model_id}]')
+        try:
+            response = self.client.api_client.do(
+                'GET',
+                f'/api/2.0/mlflow/logged-models/{model_id}/artifacts/files',
+                query={'artifact_file_path': 'MLmodel'},
+                raw=True,
+            )
+        except Exception as e:
+            logger.error(f"Error retrieving MLmodel for logged model [{model_id}]: {e}")
+            return None
+        contents = response['contents'] if isinstance(response, dict) else response
+        raw = contents.read()
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode('utf-8')
+        return yaml.safe_load(raw)
+
+    def __extract_run_artifacts(self, run_tags, run_object):
         """
         MLFlow captured all artifacts for the given model experiment. Artifacts may include model input and output
         signatures as well as interpreter versions and ML frameworks.
-        :param run_tags: The tag captured on MLFlow as JSON string.
+        :param run_tags: The tags captured on MLFlow as a key/value dict.
+        :param run_object: The full run object (used to resolve MLflow 3.x logged models via `outputs`).
         :return: the list of artifacts together with model signature
         """
-        model_info = run_tags['mlflow.log-model.history']
-        fmt = '%Y-%m-%d %H:%M:%S.%f'
-
+        # Legacy path: models logged with MLflow < 3.x recorded flavors and signature inline in the run tag.
+        model_info = run_tags.get('mlflow.log-model.history')
         if model_info:
-            artifacts = []
-            model_info = json.loads(model_info)
-            for model_logged in model_info:
-                created = datetime.datetime.strptime(model_logged['utc_time_created'], fmt)
-                if 'flavors' in model_logged:
-                    flavors = self.__extract_run_artifact_flavors(model_logged['flavors'])
-                else:
-                    flavors = []
-                if 'signature' in model_logged:
-                    signature = model_logged['signature']
-                    signature_input = self.__extract_run_artifact_signature(signature['inputs'])
-                    signature_output = self.__extract_run_artifact_signature(signature['outputs'])
-                    signature = ArtifactSignature(signature_input, signature_output)
-                else:
-                    signature = None
-                artifacts.append(Artifact(created, flavors, signature))
+            artifacts = [
+                self.__build_artifact(m.get('utc_time_created'), m.get('flavors'), m.get('signature'))
+                for m in json.loads(model_info)
+            ]
             return Artifacts(artifacts)
-        else:
-            return None
+
+        # MLflow 3.x / Unity Catalog: the run references its logged models via `outputs.model_outputs`, and the
+        # flavors/signature now live in each logged model's MLmodel artifact file (see __get_logged_model_mlmodel).
+        model_outputs = (run_object.get('outputs') or {}).get('model_outputs') or []
+        artifacts = []
+        for model_output in model_outputs:
+            model_id = model_output.get('model_id')
+            if not model_id:
+                continue
+            mlmodel = self.__get_logged_model_mlmodel(model_id)
+            if not mlmodel:
+                continue
+            artifacts.append(self.__build_artifact(
+                mlmodel.get('utc_time_created'), mlmodel.get('flavors'), mlmodel.get('signature')
+            ))
+
+        if artifacts:
+            return Artifacts(artifacts)
+        return None
 
     @staticmethod
     def __extract_source_lineage_name(data_source):
@@ -340,7 +392,7 @@ class ModelRiskApi:
 
         run_data_sources = self.__extract_run_data_sources(run_object, run_tags)
         run_cluster = self.__extract_run_cluster(run_tags)
-        run_artifacts = self.__extract_run_artifacts(run_tags)
+        run_artifacts = self.__extract_run_artifacts(run_tags, run_object)
         run_libraries = self.__extract_run_libraries(run_tags)
 
         if run_description:

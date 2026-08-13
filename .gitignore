@@ -1,6 +1,25 @@
-venv
-*.idea
-*.iml
-dist
-.DS_Store
+# Python / build
 __pycache__
+*.py[cod]
+*.egg-info
+build
+dist
+
+# uv / virtualenvs
+.venv
+venv
+
+# tooling caches
+.ruff_cache
+.pytest_cache
+.mypy_cache
+
+# IDE / OS
+*.idea
+.idea
+*.iml
+.DS_Store
+
+# project-specific
+.isaac
+CLAUDE.md
