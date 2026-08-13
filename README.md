@@ -1,5 +1,3 @@
-<img src=https://d1r5llqwmkrl74.cloudfront.net/notebooks/fsi/fs-lakehouse-logo-transparent.png width="600px">
-
 # Model risk management
 
 **How to build models that move quickly through validation and audit**: *With regulators and policymakers seriously
@@ -9,9 +7,6 @@ reliable enough for business to trust and act upon. This utility library will au
 submitted new models as part of a model risk management practice. Using mlflow, delta lake, unity catalog and their
 respective APIs, we aim at bringing both the technical and business context surrounding your model submission, reducing
 time to market and facilitating independent validation of financial and non-financial models.*
-
-[![CLOUD](https://img.shields.io/badge/CLOUD-ALL-blue?logo=googlecloud&style=for-the-badge)](https://databricks.com/try-databricks)
-[![POC](https://img.shields.io/badge/POC-1_days-green?style=for-the-badge)](https://databricks.com/try-databricks)
 
 ___
 
@@ -39,25 +34,6 @@ mrm.generate_doc(
 See example [output](templates%2FCredit%20Adjudication%20-%20Output.pdf) for a given test model done using an existing solution 
 [accelerator](https://github.com/databricks-industry-solutions/value-at-risk). 
 
-### Native binaries
-
-Beyond the Python dependencies, this project needs two **native binaries** that
-are *not* pip/uv installable — `graphviz` (provides `dot`, for diagrams) and
-`wkhtmltopdf` (used by `pdfkit` for HTML→PDF).
-
-- **On a Databricks cluster (Linux)**, run the cluster init script `init.sh`
-  (installs the `wkhtmltox` `.deb` and fonts), or:
-  ```bash
-  sudo apt-get install -y graphviz wkhtmltopdf
-  ```
-- **On macOS**, `graphviz` is a Homebrew formula but `wkhtmltopdf`'s formula/cask
-  was removed after the upstream project was archived. Run the bundled bootstrap,
-  which installs `graphviz` via Homebrew and `wkhtmltopdf` from its official
-  macOS `.pkg`:
-  ```bash
-  ./install-binaries-macos.sh
-  ```
-
 ### Local development with uv
 
 This project uses [uv](https://docs.astral.sh/uv/). `uv sync` provisions the
@@ -78,7 +54,9 @@ Run the CLI via the `mrm-generate` console script (or the historical
 uv run mrm-generate \
     --model-name catalog.schema.model \
     --model-version my-model-version \
-    --output my-model-output.pdf
+    --output my-model-output.pdf \
+    --db-workspace XXXX \
+    --db-token XXXX
 ```
 
 Authentication is resolved by the Databricks SDK from environment variables

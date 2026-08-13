@@ -544,10 +544,18 @@ class ModelRiskApi:
         :return: the technical context surrounding a given model, returned as wrapped class for HTML output
         """
         logger.info(f'Retrieving run_id [{run_id}] associated to model')
-        data = self.__submit_api_call(
-            '/api/2.0/mlflow/runs/get',
-            query={'run_id': run_id}
-        )
+        try:
+            data = self.__submit_api_call(
+                '/api/2.0/mlflow/runs/get',
+                query={'run_id': run_id}
+            )
+        except Exception as e:
+            # The run's experiment can be deleted (or otherwise unavailable) on the
+            # tracking server even when the model version still exists. Degrade
+            # gracefully: skip the experiment-derived sections rather than failing
+            # the whole document. Callers must treat a None model_run accordingly.
+            logger.warning(f"Could not retrieve run [{run_id}] (experiment may be deleted): {e}")
+            return None
         return self.__process_model_run(data, run_id)
 
     def __get_lineage_rec(self, upstream_source, upstream_type):
@@ -653,11 +661,15 @@ class ModelRiskApi:
         # retrieve model from Unity Catalog
         model_parent = self.__get_model_parent(model_name)
         model_versions = self.__get_model_versions(model_name, model_parent.model_parent_aliases)
+        if model_version is None:
+            # No version supplied: default to the latest registered version.
+            model_version = max(int(v.version) for v in model_versions.model_versions)
+            logger.info(f'No version specified; using latest version [{model_version}]')
         model_version = self.__get_model_version(model_name, model_version)
         model_run = self.__get_model_run(model_version.model_run_id)
 
         # retrieve model data input and lineage
-        if model_run.run_data_sources:
+        if model_run and model_run.run_data_sources:
             data_sources = model_run.run_data_sources
             data_lineage = self.__get_lineage(data_sources.sources(), model_name)
         else:
@@ -748,9 +760,10 @@ class ModelRiskApi:
             a_bit_of_space
         ])
 
-        html.extend(model_run.to_html(h_level=1))
-        html.append(a_little_bit_of_space)
-        if model_run.run_description:
+        if model_run:
+            html.extend(model_run.to_html(h_level=1))
+            html.append(a_little_bit_of_space)
+        if model_run and model_run.run_description:
             html.append('<small class="text-muted">description from mlflow experiment</small>')
             html.extend(model_run.run_description.to_html(h_level=2))
         else:
@@ -782,7 +795,7 @@ class ModelRiskApi:
             f'<p>{verbatim["implementation_artifacts"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.run_artifacts:
+        if model_run and model_run.run_artifacts:
             html.extend(model_run.run_artifacts.to_html(h_level=3))
         else:
             html.extend([
@@ -802,7 +815,7 @@ class ModelRiskApi:
             f'<p>{verbatim["implementation_approach"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.source_code:
+        if model_run and model_run.source_code:
             html.extend(model_run.source_code.to_html(h_level=2))
         else:
             html.extend([
@@ -822,7 +835,7 @@ class ModelRiskApi:
             f'<p>{verbatim["model_parameters"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.run_params:
+        if model_run and model_run.run_params:
             html.extend(model_run.run_params.to_html(h_level=3))
         else:
             html.extend([
@@ -842,7 +855,7 @@ class ModelRiskApi:
             f'<p>{verbatim["model_metrics"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.run_metrics:
+        if model_run and model_run.run_metrics:
             html.extend(model_run.run_metrics.to_html(h_level=3))
         else:
             html.extend([
@@ -873,7 +886,7 @@ class ModelRiskApi:
             f'<p>{verbatim["model_dependencies_infra"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.run_cluster:
+        if model_run and model_run.run_cluster:
             html.extend(model_run.run_cluster.to_html(h_level=2))
         else:
             html.extend([
@@ -894,7 +907,7 @@ class ModelRiskApi:
             '</div>'
         ])
 
-        if model_run.run_libraries and model_run.run_libraries.non_empty():
+        if model_run and model_run.run_libraries and model_run.run_libraries.non_empty():
             html.extend(model_run.run_libraries.to_html(h_level=2))
         else:
             html.extend([
@@ -914,7 +927,7 @@ class ModelRiskApi:
             f'<p>{verbatim["model_signature"]["info"]}</p>',
             '</div>'
         ])
-        if model_run.run_artifacts:
+        if model_run and model_run.run_artifacts:
             for artifact in model_run.run_artifacts.artifacts:
                 if artifact.signature:
                     html.extend(artifact.signature.to_html(h_level=3))
